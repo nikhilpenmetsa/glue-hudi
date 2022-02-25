@@ -1,0 +1,11 @@
+Customer Blog Samples
+https://aws.amazon.com/blogs/architecture/how-ribbon-built-a-scalable-resilient-robocall-mitigation-platform/
+https://aws.amazon.com/blogs/big-data/how-amazon-transportation-service-enabled-near-real-time-event-analytics-at-petabyte-scale-using-aws-glue-with-apache-hudi/
+https://aws.amazon.com/blogs/industries/how-edf-transformed-its-trading-operations-on-aws/
+
+CDK samples, repos etc
+https://aws.amazon.com/blogs/architecture/field-notes-how-to-build-an-aws-glue-workflow-using-the-aws-cloud-development-kit/
+https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_glue-readme.html
+https://github.com/aws-samples/aws-cdk-examples
+https://medium.com/@kargawal.abhishek/aws-cdk-deploy-managed-etl-using-aws-glue-job-1925098ec40f
+https://github.com/aws-samples/glue-workflow-aws-cdk

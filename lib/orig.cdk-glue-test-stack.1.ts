@@ -4,13 +4,8 @@ import { Construct } from 'constructs';
 import { Role, ServicePrincipal, ManagedPolicy } from 'aws-cdk-lib/aws-iam';
 //import * as s3 from '@aws-cdk/aws-s3';
 import { Bucket, BucketAccessControl, BucketEncryption, BlockPublicAccess  } from 'aws-cdk-lib/aws-s3';
-//import * as glue from "@aws-cdk/aws-glue";
-//import { Database } from "aws-cdk-lib/aws-glue";
-//import { CfnDatabase,CfnDatabaseProps } from 'aws-cdk-lib/aws-glue';
-
-import { Database } from '@aws-cdk/aws-glue-alpha';
-
-import { Asset } from "aws-cdk-lib/aws-s3-assets";
+import * as glue from "@aws-cdk/aws-glue";
+import { Asset } from "@aws-cdk/aws-s3-assets";
 import * as path from "path";
 
 
@@ -18,7 +13,7 @@ export class CdkGlueTestStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
 
-    const role = new Role(this, 'access-glue-avista', {
+    const role = new Role(this, 'access-glue-fifa', {
       assumedBy: new ServicePrincipal('glue.amazonaws.com')
     });
     
@@ -44,22 +39,6 @@ export class CdkGlueTestStack extends Stack {
       path: path.join(__dirname, "assets/hello-etl.py"),
     })
  
-     //create glue database
-     /*
-    const glue_db = new CfnDatabase(this, 'my-db', {
-      catalogId: 'someCatalogId',
-      databaseInput :{
-        name: 'db-input-name'
-      },
-    })
-    */
-    
-    //todo - had to manually grant CDK IAM role as "database creators" in lakeformation console.
-    //https://github.com/hashicorp/terraform-provider-aws/issues/10251
-    const glue_db = new Database(this, "glue-test-db", {
-      databaseName: "glue-test-db",
-    })
-
   }
 }
 

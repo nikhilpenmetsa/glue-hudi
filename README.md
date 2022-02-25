@@ -1,8 +1,11 @@
-# Welcome to your CDK TypeScript project!
+# CDK TypeScript project for deploying Glue ETL jobs.
 
-This is a blank project for TypeScript development with CDK.
 
-The `cdk.json` file tells the CDK Toolkit how to execute your app.
+## Instructions
+
+Update CDK to latest 2.13.0 (build b0b744d) - as of 02/25.
+Add CDK IAM role as "Database creator" in lakeformation console
+
 
 ## Useful commands
 

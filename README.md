@@ -3,6 +3,13 @@
 
 ## Instructions
 
+git clone git@github.com:nikhilpenmetsa/glue-hudi.git
+cd glue-hudi
+npm install
+cdk bookstrap
+
+
+
 Update CDK to latest 2.13.0 (build b0b744d) - as of 02/25.
 Add CDK IAM role as "Database creator" in lakeformation console
 

@@ -8,7 +8,7 @@ import { Bucket, BucketAccessControl, BucketEncryption, BlockPublicAccess  } fro
 //import { Database } from "aws-cdk-lib/aws-glue";
 //import { CfnDatabase,CfnDatabaseProps } from 'aws-cdk-lib/aws-glue';
 
-import { Database } from '@aws-cdk/aws-glue-alpha';
+import { Database, Job, JobProps, JobExecutable, GlueVersion, PythonVersion,Code } from '@aws-cdk/aws-glue-alpha';
 
 import { Asset } from "aws-cdk-lib/aws-s3-assets";
 import * as path from "path";
@@ -44,6 +44,44 @@ export class CdkGlueTestStack extends Stack {
       path: path.join(__dirname, "assets/hello-etl.py"),
     })
  
+    
+    const jobProps = {
+      command: {
+        name: 'glueetl',
+        pythonVersion: '3',
+        scriptLocation: f_pyAssetETL.s3ObjectUrl,
+      },
+  
+      defaultArguments: { },
+      description: 'etl-job-description',
+      executionProperty: {
+        maxConcurrentRuns: 1,
+      },
+      glueVersion: '2.0',
+      maxRetries: 0,
+      name: 'etl-job',
+      numberOfWorkers: 2,
+      role: role.roleArn,
+      timeout: 180, // minutes
+      workerType: 'Standard',
+      
+      executable: JobExecutable.pythonEtl({
+        glueVersion: GlueVersion.V3_0,
+        pythonVersion: PythonVersion.THREE,
+        script: Code.fromAsset(path.join(__dirname, "assets/hello-etl.py"))
+      }),
+    };
+      
+    const job = new Job(this, "glue-job-asset", {
+      executable: JobExecutable.pythonEtl({
+        glueVersion: GlueVersion.V3_0,
+        pythonVersion: PythonVersion.THREE,
+        script: Code.fromAsset(path.join(__dirname, "assets/hello-etl.py"))
+      }),
+      role: role,
+      jobName: 'a-glue-cdk-job'
+    })
+ 
      //create glue database
      /*
     const glue_db = new CfnDatabase(this, 'my-db', {
@@ -56,9 +94,9 @@ export class CdkGlueTestStack extends Stack {
     
     //todo - had to manually grant CDK IAM role as "database creators" in lakeformation console.
     //https://github.com/hashicorp/terraform-provider-aws/issues/10251
-    const glue_db = new Database(this, "glue-test-db", {
-      databaseName: "glue-test-db",
-    })
+    // const glue_db = new Database(this, "glue-test-db", {
+    //   databaseName: "glue-test-db",
+    // })
 
   }
 }

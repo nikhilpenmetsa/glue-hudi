@@ -46,9 +46,9 @@ export class CdkGlueTestStack extends Stack {
 
     // rawBucket.grantReadWrite(role);
     // processedBucket.grantReadWrite(role);
+    controlTable.grantReadData(role);
     importBucket.grantReadWrite(role);
     exportBucket.grantReadWrite(role);
-    controlTable.grantReadData(role);
     
     // console.log("------rawBucket--------",rawBucket)
     //console.log("---------------importBucketName--------------------",importBucket)

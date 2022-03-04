@@ -13,6 +13,8 @@ import { Database, Job, JobProps, JobExecutable, GlueVersion, PythonVersion,Code
 import { Asset } from "aws-cdk-lib/aws-s3-assets";
 import * as path from "path";
 
+import { Table } from 'aws-cdk-lib/aws-dynamodb'
+
 
 export class CdkGlueTestStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
@@ -40,14 +42,17 @@ export class CdkGlueTestStack extends Stack {
     const importBucket = Bucket.fromBucketName(this, "np-glue-hudi-raw2-id", "np-glue-hudi-raw2")
     const exportBucket = Bucket.fromBucketName(this, "np-glue-hudi-processed2-id", "np-glue-hudi-processed2")
 
+    const controlTable = Table.fromTableName(this, "GlueCompactionTable-id", "GlueCompactionTable2")
+
     // rawBucket.grantReadWrite(role);
     // processedBucket.grantReadWrite(role);
     importBucket.grantReadWrite(role);
     exportBucket.grantReadWrite(role);
+    controlTable.grantReadData(role);
     
     // console.log("------rawBucket--------",rawBucket)
-    console.log("---------------importBucketName--------------------",importBucket)
-    console.log("---------------done---importBucketName--------------------")
+    //console.log("---------------importBucketName--------------------",importBucket)
+    //console.log("---------------done---importBucketName--------------------")
 
 
 
@@ -55,7 +60,7 @@ export class CdkGlueTestStack extends Stack {
       executable: JobExecutable.pythonEtl({
         glueVersion: GlueVersion.V3_0,
         pythonVersion: PythonVersion.THREE,
-        script: Code.fromAsset(path.join(__dirname, "assets/hello-etl.py"))
+        script: Code.fromAsset(path.join(__dirname, "assets/glue_scripts/compact.py"))
       }),
       role: role,
       jobName: 'a-glue-cdk-job',

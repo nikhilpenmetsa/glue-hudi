@@ -4,6 +4,15 @@ from awsglue.utils import getResolvedOptions
 from pyspark.context import SparkContext
 from awsglue.context import GlueContext
 from awsglue.job import Job
+import logging
+import boto3
+from boto3.dynamodb.conditions import Key
+
+#Creating logger
+MSG_FORMAT = '%(asctime)s %(levelname)s %(name)s: %(message)s'
+DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'
+logging.basicConfig(format=MSG_FORMAT, datefmt=DATETIME_FORMAT)
+
 
 args = getResolvedOptions(sys.argv, [
     'JOB_NAME',
@@ -16,6 +25,20 @@ glueContext = GlueContext(sc)
 spark = glueContext.spark_session
 job = Job(glueContext)
 job.init(args["JOB_NAME"], args)
+
+logger = logging.getLogger(args["JOB_NAME"])
+logger.setLevel(logging.INFO)
+#logger.info('in here')
+
+
+#retrieve job parameters from control table in DynamoDB 
+dynamodb_r = boto3.resource('dynamodb') 
+compactJobParamItems = dynamodb_r.Table("GlueCompactionTable2").query(
+    KeyConditionExpression=Key('glue_job_name').eq("glueJob-datalake-cisdev-etl01")
+)
+
+for compactJobParams in compactJobParamItems['Items']:
+    logger.info(compactJobParams)
 
 # Script generated for node S3 bucket
 S3bucket_node1 = glueContext.create_dynamic_frame.from_options(

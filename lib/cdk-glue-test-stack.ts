@@ -1,31 +1,26 @@
 import { Stack, StackProps } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
-// import * as sqs from 'aws-cdk-lib/aws-sqs';
 import { Role, ServicePrincipal, ManagedPolicy } from 'aws-cdk-lib/aws-iam';
-//import * as s3 from '@aws-cdk/aws-s3';
 import { Bucket, BucketAccessControl, BucketEncryption, BlockPublicAccess  } from 'aws-cdk-lib/aws-s3';
-//import * as glue from "@aws-cdk/aws-glue";
-//import { Database } from "aws-cdk-lib/aws-glue";
-//import { CfnDatabase,CfnDatabaseProps } from 'aws-cdk-lib/aws-glue';
-
 import { Database, Job, JobProps, JobExecutable, GlueVersion, PythonVersion,Code } from '@aws-cdk/aws-glue-alpha';
-
 import { Asset } from "aws-cdk-lib/aws-s3-assets";
 import * as path from "path";
-
-import { Table } from 'aws-cdk-lib/aws-dynamodb'
-
+import { Table, AttributeType, BillingMode } from 'aws-cdk-lib/aws-dynamodb'
+import { PreReqStackProps } from './prereq-stack';
 
 export class CdkGlueTestStack extends Stack {
-  constructor(scope: Construct, id: string, props?: StackProps) {
+  constructor(scope: Construct, id: string, props: PreReqStackProps) {
     super(scope, id, props);
 
-    const role = new Role(this, 'access-glue-avista', {
-      assumedBy: new ServicePrincipal('glue.amazonaws.com')
-    });
+    // const role = new Role(this, 'access-glue-avista', {
+    //   assumedBy: new ServicePrincipal('glue.amazonaws.com')
+    // });
+    
+    //getting role from pre-req stack
+    const role = props.glueRoleGrantReadWrite;
     
     //const gluePolicy = new ManagedPolicy(fromAwsManagedPolicyName("service-role/AWSGlueServiceRole");
-    role.addManagedPolicy(ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSGlueServiceRole'))
+    //role.addManagedPolicy(ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSGlueServiceRole'))
     
     // const rawBucket = new Bucket(this, 'np-raw-bucket123', {
     //   accessControl: BucketAccessControl.BUCKET_OWNER_FULL_CONTROL,
@@ -39,16 +34,28 @@ export class CdkGlueTestStack extends Stack {
     //   blockPublicAccess: BlockPublicAccess.BLOCK_ALL
     // });
  
-    const importBucket = Bucket.fromBucketName(this, "np-glue-hudi-raw2-id", "np-glue-hudi-raw2")
-    const exportBucket = Bucket.fromBucketName(this, "np-glue-hudi-processed2-id", "np-glue-hudi-processed2")
+    // const importBucket = Bucket.fromBucketName(this, "np-glue-hudi-raw2-id", "np-glue-hudi-raw2")
+    // const exportBucket = Bucket.fromBucketName(this, "np-glue-hudi-processed2-id", "np-glue-hudi-processed2")
+    // const controlTable = Table.fromTableName(this, "GlueCompactionTable-id", "GlueCompactionTable2")
 
-    const controlTable = Table.fromTableName(this, "GlueCompactionTable-id", "GlueCompactionTable2")
+    const importBucket = props.rawBucket;
+    const processedBucket = props.processedBucket;
+    const controlTable = props.controlTable;
+
+    // const table_name = "nikhiltest"
+    // const controlTable2 = new Table(this, 'gluetable2', {
+    //   partitionKey: {name: 'glue_job_name', type: AttributeType.STRING},
+    //   sortKey: {name: 'tablename_and_pk', type: AttributeType.STRING},
+    //   tableName : table_name,
+    //   billingMode: BillingMode.PAY_PER_REQUEST, 
+    // })
 
     // rawBucket.grantReadWrite(role);
     // processedBucket.grantReadWrite(role);
     controlTable.grantReadData(role);
+//  controlTable2.grantReadData(role);
     importBucket.grantReadWrite(role);
-    exportBucket.grantReadWrite(role);
+    processedBucket.grantReadWrite(role);
     
     // console.log("------rawBucket--------",rawBucket)
     //console.log("---------------importBucketName--------------------",importBucket)
@@ -69,7 +76,7 @@ export class CdkGlueTestStack extends Stack {
       defaultArguments: {
         "--job-bookmark-option": "job-bookmark-disable",
         "--source_BucketName": importBucket.bucketName,
-        "--target_BucketName": exportBucket.bucketName,
+        "--target_BucketName": processedBucket.bucketName,
       },
       
     })
@@ -126,4 +133,5 @@ export class CdkGlueTestStack extends Stack {
 
   }
 }
+
 

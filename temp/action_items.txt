@@ -10,15 +10,12 @@
     b)	IAM roles creation - Done
     c)	Glue job creation – Nikhil - Done
     d)	Glue connector setup – what can be done to automate(subscribe, create conn) - Nikhil - Done(need to do it via console)
-    e)	Glue 3.0. Hudi -0.9.8. – no AIs.
-    f)  Create new staging stack - Nikhil
+    e)  Create new staging stack - Nikhil
 8)	Control File - Dynamo DB – Nikhil
     a)	Trim down fields – Satish - In progress
     b)	Table design – Nikhil - Done.
-    Remove hudi table type - Nikhil
-    c)	CDK for table – Ranjith - In progress
-    d)	Populate data into table – Ranjith - In progress.
+    c)  Remove hudi table type - Nikhil
+    d)	CDK for table – Ranjith - In progress
+    e)	Populate data into table – Ranjith - In progress.
 9)	Provide control file header – Satish --DONE
-10)	Identify AWS collab writing options – Nikhil
-    a)	Use repo instead.
-11) Blog first cut – Jason - In progress.
+10) Blog first cut – Jason - In progress.

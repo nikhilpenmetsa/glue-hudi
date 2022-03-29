@@ -1,10 +1,10 @@
 1)	Provide your public github.com email or username. I will add you as collaborators to the repo – Jason - Done
 2)	Define data structure and sample data – CSV – Satish – DONE
-    a)	Rename columns, remove not needed columns - Satish - Inprogress.
+    a)	Rename columns, remove not needed columns - Satish - DONE
 3)	Small python code to convert CSV to Parquet –DONE
-    a)	Upload to repo - Satish - Done.
+    a)	Upload to repo - Satish - DONE
 4)	Glue-Hudi code to move data from Raw to Curated (hudi format)
-    a)	First cut – Satish - In progress 
+    a)	First cut – Satish - Done w CSV 
 7)	CDK first cut – Nikhil
     a)	S3 buckets creation - Done
     b)	IAM roles creation - Done
@@ -12,7 +12,7 @@
     d)	Glue connector setup – what can be done to automate(subscribe, create conn) - Nikhil - Done(need to do it via console)
     e)  Create new staging stack - Nikhil - Done
 8)	Control File - Dynamo DB – Nikhil
-    a)	Trim down fields in sample data – Satish - In progress
+    a)	Trim down fields in sample data – Satish - DONE
     b)	Table design – Nikhil - Done.
     c)  Remove hudi table type - Nikhil
     d)	CDK for table – Ranjith - Done

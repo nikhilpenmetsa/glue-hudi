@@ -1,3 +1,9 @@
+Incorporate control table(CSV) to DynamoDB - Nikhil - In progress
+Incorporate script to CDK - Nikhil - Done
+DMS->Parquet - Nikhil - Not started
+
+
+---------OLD AIs-------
 1)	Provide your public github.com email or username. I will add you as collaborators to the repo – Jason - Done
 2)	Define data structure and sample data – CSV – Satish – DONE
     a)	Rename columns, remove not needed columns - Satish - DONE

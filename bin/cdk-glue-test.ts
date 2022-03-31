@@ -15,6 +15,7 @@ const glue_stack = new CdkGlueTestStack(app, 'CdkGlueTestStack', {
   glueRoleGrantReadWrite: prereqStack.glueRoleGrantReadWrite,
   rawBucket: prereqStack.rawBucket,
   processedBucket: prereqStack.processedBucket,
+  libraryBucket: prereqStack.libraryBucket,
   controlTable: prereqStack.controlTable,
 
 });

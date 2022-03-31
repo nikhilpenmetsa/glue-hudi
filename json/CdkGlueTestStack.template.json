@@ -1,0 +1,316 @@
+{
+  "Resources": {
+    "gluejobasset32BAB752": {
+      "Type": "AWS::Glue::Job",
+      "Properties": {
+        "Command": {
+          "Name": "glueetl",
+          "PythonVersion": "3",
+          "ScriptLocation": {
+            "Fn::Join": [
+              "",
+              [
+                "s3://",
+                {
+                  "Fn::ImportValue": "prereqStack:ExportsOutputRefnplibsbucket123DAE7885FED69CAAA"
+                },
+                "/scripts/compact_v2.py"
+              ]
+            ]
+          }
+        },
+        "Role": {
+          "Fn::ImportValue": "prereqStack:ExportsOutputFnGetAttaccessglueavista772A7FFDArn2ED7D96E"
+        },
+        "DefaultArguments": {
+          "--job-language": "python",
+          "--extra-jars": {
+            "Fn::Join": [
+              "",
+              [
+                "s3://",
+                {
+                  "Fn::ImportValue": "prereqStack:ExportsOutputRefnplibsbucket123DAE7885FED69CAAA"
+                },
+                "/jars/hudi-spark-bundle_2.11-0.10.1.jar,s3://",
+                {
+                  "Fn::ImportValue": "prereqStack:ExportsOutputRefnplibsbucket123DAE7885FED69CAAA"
+                },
+                "/jars/spark-avro_2.11-2.4.4.jar,s3://",
+                {
+                  "Fn::ImportValue": "prereqStack:ExportsOutputRefnplibsbucket123DAE7885FED69CAAA"
+                },
+                "/jars/log4j-web-2.16.0.jar"
+              ]
+            ]
+          },
+          "--enable-continuous-cloudwatch-log": "true",
+          "--enable-continuous-log-filter": "true",
+          "--enable-metrics": "",
+          "--job-bookmark-option": "job-bookmark-enable",
+          "--source_BucketName": {
+            "Fn::ImportValue": "prereqStack:ExportsOutputRefnprawbucket1234AA1D7F3105F6157"
+          },
+          "--target_BucketName": {
+            "Fn::ImportValue": "prereqStack:ExportsOutputRefnpprocessedbucket1236647D47F9DCD9E18"
+          },
+          "--lib_BucketName": {
+            "Fn::ImportValue": "prereqStack:ExportsOutputRefnplibsbucket123DAE7885FED69CAAA"
+          },
+          "--additional-python-modules": "boto3==1.17.39,botocore==1.20.39",
+          "--enable-glue-datacatalog": "",
+          "--Environment": "demo"
+        },
+        "ExecutionProperty": {
+          "MaxConcurrentRuns": 1
+        },
+        "GlueVersion": "2.0",
+        "MaxRetries": 0,
+        "Name": "MeterMeasurementsHudiCompactionJob",
+        "NumberOfWorkers": 3,
+        "WorkerType": "G.1X"
+      },
+      "Metadata": {
+        "aws:cdk:path": "CdkGlueTestStack/glue-job-asset/Resource"
+      }
+    },
+    "CDKMetadata": {
+      "Type": "AWS::CDK::Metadata",
+      "Properties": {
+        "Analytics": "v2:deflate64:H4sIAAAAAAAA/y2MTQ7CIBCFz9I9TEGNa5PuXNYDGAqo0+JMU0AXTe8uxK6+l/d3AH2EVTXmG6V1kww4wHpLxk6iWPdnyB66B115EAW9j5wX66vumBwmZNqEkibMLwOquew/bWUd70nZb4LYeRhj+9Fn0KfSHiOiXDIlfHvo//wBr6nqgpEAAAA="
+      },
+      "Metadata": {
+        "aws:cdk:path": "CdkGlueTestStack/CDKMetadata/Default"
+      },
+      "Condition": "CDKMetadataAvailable"
+    }
+  },
+  "Conditions": {
+    "CDKMetadataAvailable": {
+      "Fn::Or": [
+        {
+          "Fn::Or": [
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "af-south-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "ap-east-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "ap-northeast-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "ap-northeast-2"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "ap-south-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "ap-southeast-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "ap-southeast-2"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "ca-central-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "cn-north-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "cn-northwest-1"
+              ]
+            }
+          ]
+        },
+        {
+          "Fn::Or": [
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "eu-central-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "eu-north-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "eu-south-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "eu-west-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "eu-west-2"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "eu-west-3"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "me-south-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "sa-east-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "us-east-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "us-east-2"
+              ]
+            }
+          ]
+        },
+        {
+          "Fn::Or": [
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "us-west-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "us-west-2"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "Parameters": {
+    "BootstrapVersion": {
+      "Type": "AWS::SSM::Parameter::Value<String>",
+      "Default": "/cdk-bootstrap/hnb659fds/version",
+      "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]"
+    }
+  },
+  "Rules": {
+    "CheckBootstrapVersion": {
+      "Assertions": [
+        {
+          "Assert": {
+            "Fn::Not": [
+              {
+                "Fn::Contains": [
+                  [
+                    "1",
+                    "2",
+                    "3",
+                    "4",
+                    "5"
+                  ],
+                  {
+                    "Ref": "BootstrapVersion"
+                  }
+                ]
+              }
+            ]
+          },
+          "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI."
+        }
+      ]
+    }
+  }
+}

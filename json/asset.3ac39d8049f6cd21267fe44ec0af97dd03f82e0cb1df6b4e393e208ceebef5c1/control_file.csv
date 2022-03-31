@@ -1,0 +1,2 @@
+db_name,schema_name,table_name,primary_key,partition_key,hudi_storage_type,glue_job_name,dms_full_load_partitioned,hudi_bulkinsert_shuffle_parallelism,hudi_upsert_shuffle_parallelism,cdc_split_upsert
+msrmt_db,msrmt_schema,msrmt_table,MEASUREMENT_ID;MEASUREMENT_DATE_TIME,MEASUREMENT_DATE,cow,MeterMeasurementsHudiCompactionJob,no,3,2,no

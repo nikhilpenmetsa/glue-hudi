@@ -1,0 +1,271 @@
+{
+  "version": "16.0.0",
+  "artifacts": {
+    "Tree": {
+      "type": "cdk:tree",
+      "properties": {
+        "file": "tree.json"
+      }
+    },
+    "PreReqStack.assets": {
+      "type": "cdk:asset-manifest",
+      "properties": {
+        "file": "PreReqStack.assets.json",
+        "requiresBootstrapStackVersion": 6,
+        "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version"
+      }
+    },
+    "PreReqStack": {
+      "type": "aws:cloudformation:stack",
+      "environment": "aws://unknown-account/unknown-region",
+      "properties": {
+        "templateFile": "PreReqStack.template.json",
+        "validateOnSynth": false,
+        "assumeRoleArn": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-hnb659fds-deploy-role-${AWS::AccountId}-${AWS::Region}",
+        "cloudFormationExecutionRoleArn": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-hnb659fds-cfn-exec-role-${AWS::AccountId}-${AWS::Region}",
+        "stackTemplateAssetObjectUrl": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/7c0adffe14b24738f11720bdb89ef3a408e0126bce18c52fa6d6ea021f2185ba.json",
+        "requiresBootstrapStackVersion": 6,
+        "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version",
+        "additionalDependencies": [
+          "PreReqStack.assets"
+        ],
+        "lookupRole": {
+          "arn": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-hnb659fds-lookup-role-${AWS::AccountId}-${AWS::Region}",
+          "requiresBootstrapStackVersion": 8,
+          "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version"
+        },
+        "stackName": "prereqStack"
+      },
+      "dependencies": [
+        "PreReqStack.assets"
+      ],
+      "metadata": {
+        "/PreReqStack/access-glue-avista/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "accessglueavista772A7FFD"
+          }
+        ],
+        "/PreReqStack/access-glue-avista/DefaultPolicy/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "accessglueavistaDefaultPolicyB13ACCFA"
+          }
+        ],
+        "/PreReqStack/np-raw-bucket123/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "nprawbucket1234AA1D7F3"
+          }
+        ],
+        "/PreReqStack/np-processed-bucket123/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "npprocessedbucket1236647D47F"
+          }
+        ],
+        "/PreReqStack/np-libs-bucket123/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "nplibsbucket123DAE7885F"
+          }
+        ],
+        "/PreReqStack/deployJars/AwsCliLayer/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "deployJarsAwsCliLayer142257D2"
+          }
+        ],
+        "/PreReqStack/deployJars/CustomResource/Default": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "deployJarsCustomResource2CD82C78"
+          }
+        ],
+        "/PreReqStack/Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C/ServiceRole/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRole89A01265"
+          }
+        ],
+        "/PreReqStack/Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C/ServiceRole/DefaultPolicy/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRoleDefaultPolicy88902FDF"
+          }
+        ],
+        "/PreReqStack/Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C81C01536"
+          }
+        ],
+        "/PreReqStack/script/AwsCliLayer/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "scriptAwsCliLayer0AC69784"
+          }
+        ],
+        "/PreReqStack/script/CustomResource/Default": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "scriptCustomResource65F7EA46"
+          }
+        ],
+        "/PreReqStack/control_file/AwsCliLayer/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "controlfileAwsCliLayer53E50E71"
+          }
+        ],
+        "/PreReqStack/control_file/CustomResource/Default": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "controlfileCustomResource3DBB42FA"
+          }
+        ],
+        "/PreReqStack/staging_data/AwsCliLayer/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "stagingdataAwsCliLayer2CB57F37"
+          }
+        ],
+        "/PreReqStack/staging_data/CustomResource/Default": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "stagingdataCustomResource26C74CBB"
+          }
+        ],
+        "/PreReqStack/gluetable2": [
+          {
+            "type": "aws:cdk:hasPhysicalName",
+            "data": {
+              "Ref": "gluetable2B8EEA762"
+            }
+          }
+        ],
+        "/PreReqStack/gluetable2/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "gluetable2B8EEA762"
+          }
+        ],
+        "/PreReqStack/CDKMetadata/Default": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CDKMetadata"
+          }
+        ],
+        "/PreReqStack/CDKMetadata/Condition": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CDKMetadataAvailable"
+          }
+        ],
+        "/PreReqStack/Exports/Output{\"Ref\":\"nplibsbucket123DAE7885F\"}": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ExportsOutputRefnplibsbucket123DAE7885FED69CAAA"
+          }
+        ],
+        "/PreReqStack/Exports/Output{\"Fn::GetAtt\":[\"accessglueavista772A7FFD\",\"Arn\"]}": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ExportsOutputFnGetAttaccessglueavista772A7FFDArn2ED7D96E"
+          }
+        ],
+        "/PreReqStack/Exports/Output{\"Ref\":\"nprawbucket1234AA1D7F3\"}": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ExportsOutputRefnprawbucket1234AA1D7F3105F6157"
+          }
+        ],
+        "/PreReqStack/Exports/Output{\"Ref\":\"npprocessedbucket1236647D47F\"}": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ExportsOutputRefnpprocessedbucket1236647D47F9DCD9E18"
+          }
+        ],
+        "/PreReqStack/BootstrapVersion": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "BootstrapVersion"
+          }
+        ],
+        "/PreReqStack/CheckBootstrapVersion": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CheckBootstrapVersion"
+          }
+        ]
+      },
+      "displayName": "PreReqStack"
+    },
+    "CdkGlueTestStack.assets": {
+      "type": "cdk:asset-manifest",
+      "properties": {
+        "file": "CdkGlueTestStack.assets.json",
+        "requiresBootstrapStackVersion": 6,
+        "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version"
+      }
+    },
+    "CdkGlueTestStack": {
+      "type": "aws:cloudformation:stack",
+      "environment": "aws://unknown-account/unknown-region",
+      "properties": {
+        "templateFile": "CdkGlueTestStack.template.json",
+        "validateOnSynth": false,
+        "assumeRoleArn": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-hnb659fds-deploy-role-${AWS::AccountId}-${AWS::Region}",
+        "cloudFormationExecutionRoleArn": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-hnb659fds-cfn-exec-role-${AWS::AccountId}-${AWS::Region}",
+        "stackTemplateAssetObjectUrl": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/18ff0510f36daacb12d652f2311ae2d3fb348ec6fdb429d9815799689d9d491a.json",
+        "requiresBootstrapStackVersion": 6,
+        "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version",
+        "additionalDependencies": [
+          "CdkGlueTestStack.assets"
+        ],
+        "lookupRole": {
+          "arn": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-hnb659fds-lookup-role-${AWS::AccountId}-${AWS::Region}",
+          "requiresBootstrapStackVersion": 8,
+          "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version"
+        }
+      },
+      "dependencies": [
+        "PreReqStack",
+        "CdkGlueTestStack.assets"
+      ],
+      "metadata": {
+        "/CdkGlueTestStack/glue-job-asset/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "gluejobasset32BAB752"
+          }
+        ],
+        "/CdkGlueTestStack/CDKMetadata/Default": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CDKMetadata"
+          }
+        ],
+        "/CdkGlueTestStack/CDKMetadata/Condition": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CDKMetadataAvailable"
+          }
+        ],
+        "/CdkGlueTestStack/BootstrapVersion": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "BootstrapVersion"
+          }
+        ],
+        "/CdkGlueTestStack/CheckBootstrapVersion": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CheckBootstrapVersion"
+          }
+        ]
+      },
+      "displayName": "CdkGlueTestStack"
+    }
+  }
+}

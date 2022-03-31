@@ -1,7 +1,8 @@
 Incorporate control table(CSV) to DynamoDB - Nikhil - In progress
 Incorporate script to CDK - Nikhil - Done
 DMS->Parquet - Nikhil - Not started
-
+Create DMS, RDS Stack - Nikhil/Ranjith - Not started
+Scenario setup - Load data in RDS, show how to query in Athena - Satish?
 
 ---------OLD AIs-------
 1)	Provide your public github.com email or username. I will add you as collaborators to the repo – Jason - Done

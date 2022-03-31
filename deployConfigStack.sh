@@ -1,5 +1,9 @@
 #!/bin/bash
 cd ~/environment/glue-hudi
+
+echo "install npm packages"
+npm install
+
 echo "bootstrap cdk"
 cdk bootstrap
 

@@ -1,3 +1,4 @@
+#!/bin/bash
 echo "reset"
 echo "deleting glue db dl_msrmt_db_msrmt_schema"
 aws glue delete-database --name dl_msrmt_db_msrmt_schema

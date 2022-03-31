@@ -1,3 +1,4 @@
+#!/bin/bash
 echo "reset job bookmark"
 
 aws glue reset-job-bookmark --job-name MeterMeasurementsHudiCompactionJob

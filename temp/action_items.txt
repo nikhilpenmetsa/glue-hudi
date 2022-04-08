@@ -1,8 +1,12 @@
+---------04/08/22--------
 Incorporate control table(CSV) to DynamoDB - Nikhil - In progress
-Incorporate script to CDK - Nikhil - Done
-DMS->Parquet - Nikhil - Not started
-Create DMS, RDS Stack - Nikhil/Ranjith - Not started
-Scenario setup - Load data in RDS, show how to query in Athena - Satish?
+Incorporate Glue script to CDK - Nikhil - Done
+Generate Parquet - Satish - Not started
+Scenario setup 1 - Full load - Upload parquet data in S3, show data via Athena - Satish
+Scenario setup 2 - CDC - Upload parquet data with updates/deletes/inserts, show changes via Athena - Satish
+Include transaction_id in the datasets - Satish
+---------04/08/22--------
+
 
 ---------OLD AIs-------
 1)	Provide your public github.com email or username. I will add you as collaborators to the repo – Jason - Done

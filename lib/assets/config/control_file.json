@@ -1,0 +1,15 @@
+[
+    {
+       "db_name":"msrmt_db",
+       "schema_name":"msrmt_schema",
+       "table_name":"msrmt_table",
+       "primary_key":"MEASUREMENT_ID;MEASUREMENT_DATE_TIME",
+       "partition_key":"MEASUREMENT_DATE",
+       "hudi_storage_type":"cow",
+       "glue_job_name":"MeterMeasurementsHudiCompactionJob",
+       "dms_full_load_partitioned":"no",
+       "hudi_bulkinsert_shuffle_parallelism":"3",
+       "hudi_upsert_shuffle_parallelism":"2",
+       "cdc_split_upsert": "no"
+    }
+ ]

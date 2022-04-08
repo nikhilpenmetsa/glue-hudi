@@ -23,6 +23,7 @@ from time import sleep
 
 import boto3
 from botocore.exceptions import ClientError, ParamValidationError
+from boto3.dynamodb.conditions import Key
 
 ###########################n############################################################################
 #####Variables Initilization############################################################################
@@ -34,7 +35,8 @@ args = getResolvedOptions(sys.argv, [
     'Environment',
     'source_BucketName',
     'target_BucketName',
-    'lib_BucketName'
+    'lib_BucketName',
+    'control_Table'
     ])
 
 spark = SparkSession.builder \
@@ -49,39 +51,44 @@ job.init(args['JOB_NAME'], args)
 to_zone = tz.gettz('US/Pacific')
 
 ################ Extract Job Parameters#########################
-jobName = args['JOB_NAME'].lower()
+jobName = args['JOB_NAME']
+print(jobName)
 environment = args['Environment'].lower()
-
-logger = glueContext.get_logger()
-
-logger.info('Fetching configuration.')
-region = os.environ['AWS_DEFAULT_REGION']
-
-
-# *************Glue Client*******************
-glueClient = boto3.client('glue')
-
-
-####################### Setting Source and Target bucket names######################################
-#curatedS3BucketName = 'mycuratedbuckets3'
-#curatedS3BucketName = 'np-glue-hudi-processed2'
-
-#rawS3BucketName = 'myrawbuckets3'
-#rawS3BucketName = 'np-glue-hudi-raw2'
-
 curatedS3BucketName = args['target_BucketName']
 rawS3BucketName = args['source_BucketName']
 libBucketName = args['lib_BucketName']
+controlTableName = args['control_Table']
+print(controlTableName)
+controlFileLocation = "s3://"+libBucketName+"/config/control_file.csv"
+controlFileJSONLocation = "s3://"+libBucketName+"/config/control_file.json"
 
+logger = glueContext.get_logger()
+logger.info('Fetching configuration.')
+region = os.environ['AWS_DEFAULT_REGION']
 log_info_file_name = 'logs/{}/info_{}.json'.format(jobName, str(
     datetime.now().astimezone(to_zone).strftime('%Y-%m-%d %H:%M:%S.%f')))
 
-#controlFileLocation = "s3://myrawbuckets3/control_file.csv"
-controlFileLocation = "s3://"+libBucketName+"/config/control_file.csv"
+glueClient = boto3.client('glue')
+dynamodb_r = boto3.resource('dynamodb') 
+
+##todo - add error handling
+compactJobParamItems = dynamodb_r.Table(controlTableName).query(
+    KeyConditionExpression=Key('glue_job_name').eq(jobName)
+)
+
+
+ctrlRecsList = compactJobParamItems['Items']
+
+print(ctrlRecsList)
+print(len(ctrlRecsList))
+
+# for compactJobParams in compactJobParamItems['Items']:
+#     print("printing job params from dynamo db")
+#     print(compactJobParams)
+
 
 
 dropColumnList = ['db', 'op', 'schema_name', 'transaction_id', 'seq_by_pk']
-
 
 def main():
     try:
@@ -89,42 +96,45 @@ def main():
         ########################################################################################################
         ##### Load Control File ###################################################################################
         ########################################################################################################
-        ctrl_schema = StructType([
-                                  StructField("db_name", StringType(), True),
-                                  StructField("schema_name", StringType(), True),
-                                  StructField("table_name", StringType(), True),
-                                  StructField("primary_key", StringType(), True),
-                                  StructField("partition_key", StringType(), True),
-                                  StructField("hudi_storage_type", StringType(), True),
-                                  StructField("glue_job_name", StringType(), True),
-                                  StructField("dms_full_load_partitioned", StringType(), True),
-                                  StructField("hudi_bulkinsert_shuffle_parallelism", IntegerType(), True),
-                                  StructField("hudi_upsert_shuffle_parallelism", IntegerType(), True),
-                                  StructField("s3_to_redshift", StringType(), True),
-                                  StructField("cdc_split_upsert", StringType(), True),
-                                  StructField("redshift_timestamp_cols", StringType(), True)
-                                  ]
-                                 )
+        # ctrl_schema = StructType([
+        #                           StructField("db_name", StringType(), True),
+        #                           StructField("schema_name", StringType(), True),
+        #                           StructField("table_name", StringType(), True),
+        #                           StructField("primary_key", StringType(), True),
+        #                           StructField("partition_key", StringType(), True),
+        #                           StructField("hudi_storage_type", StringType(), True),
+        #                           StructField("glue_job_name", StringType(), True),
+        #                           StructField("dms_full_load_partitioned", StringType(), True),
+        #                           StructField("hudi_bulkinsert_shuffle_parallelism", IntegerType(), True),
+        #                           StructField("hudi_upsert_shuffle_parallelism", IntegerType(), True),
+        #                         #   StructField("s3_to_redshift", StringType(), True),
+        #                           StructField("cdc_split_upsert", StringType(), True),
+        #                         #   StructField("redshift_timestamp_cols", StringType(), True)
+        #                           ]
+        #                          )
 
-        ctrlDf = spark.read.schema(ctrl_schema).option("header", "true").csv(controlFileLocation) \
-            .withColumn('db_name', lower(col('db_name'))) \
-            .withColumn('schema_name', lower(col('schema_name'))) \
-            .withColumn('table_name', lower(col('table_name'))) \
-            .withColumn('primary_key', lower(col('primary_key'))) \
-            .withColumn('partition_key', lower(col('partition_key'))) \
-            .withColumn('hudi_storage_type', lower(col('hudi_storage_type'))) \
-            .withColumn('glue_job_name', lower(col('glue_job_name'))) \
-            .withColumn('dms_full_load_partitioned', lower(col('dms_full_load_partitioned'))) \
-            .withColumn('cdc_split_upsert', lower(col('cdc_split_upsert')))
+        # ctrlDf = spark.read.schema(ctrl_schema).option("header", "true").csv(controlFileLocation) \
+        #     .withColumn('db_name', lower(col('db_name'))) \
+        #     .withColumn('schema_name', lower(col('schema_name'))) \
+        #     .withColumn('table_name', lower(col('table_name'))) \
+        #     .withColumn('primary_key', lower(col('primary_key'))) \
+        #     .withColumn('partition_key', lower(col('partition_key'))) \
+        #     .withColumn('hudi_storage_type', lower(col('hudi_storage_type'))) \
+        #     .withColumn('glue_job_name', lower(col('glue_job_name'))) \
+        #     .withColumn('dms_full_load_partitioned', lower(col('dms_full_load_partitioned'))) \
+        #     .withColumn('cdc_split_upsert', lower(col('cdc_split_upsert')))
 
-        ctrlRecsList = ctrlDf.select('db_name', 'schema_name', 'table_name', 'primary_key', 'partition_key',
-                                     'hudi_storage_type', 'dms_full_load_partitioned',
-                                     'hudi_bulkinsert_shuffle_parallelism', 'hudi_upsert_shuffle_parallelism',
-                                     'cdc_split_upsert') \
-            .filter("glue_job_name = " + "'" + jobName + "'") \
-            .distinct() \
-            .rdd.map(lambda row: row.asDict()) \
-            .collect()
+
+
+
+        # ctrlRecsList = ctrlDf.select('db_name', 'schema_name', 'table_name', 'primary_key', 'partition_key',
+        #                              'hudi_storage_type', 'dms_full_load_partitioned',
+        #                              'hudi_bulkinsert_shuffle_parallelism', 'hudi_upsert_shuffle_parallelism',
+        #                              'cdc_split_upsert') \
+        #     .filter("glue_job_name = " + "'" + jobName + "'") \
+        #     .distinct() \
+        #     .rdd.map(lambda row: row.asDict()) \
+        #     .collect()
 
         print('--------------- ctrlRecsList Count: {} ---------------'.format(len(ctrlRecsList)))
 
@@ -168,7 +178,7 @@ def main():
                 if isGlueDbCreationSuccess == True:
                     result = process_raw_data(ctrlRec)
                 else:
-                    log_message = 'Glue GB : {} does not exist neither got created'.format(glueDbName)
+                    log_message = 'Glue DB : {} does not exist neither got created'.format(glueDbName)
                     print(log_message)
 
         else:

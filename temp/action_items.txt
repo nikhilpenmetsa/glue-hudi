@@ -1,7 +1,7 @@
 ---------04/08/22--------
 Incorporate control table(CSV) to DynamoDB - Nikhil - In progress
 Incorporate Glue script to CDK - Nikhil - Done
-Generate Parquet - Satish - Not started
+Generate Parquet - Satish - Done
 Scenario setup 1 - Full load - Upload parquet data in S3, show data via Athena - Satish
 Scenario setup 2 - CDC - Upload parquet data with updates/deletes/inserts, show changes via Athena - Satish
 Include transaction_id in the datasets - Satish

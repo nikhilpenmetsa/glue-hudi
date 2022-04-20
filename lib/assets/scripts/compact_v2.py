@@ -51,8 +51,10 @@ job.init(args['JOB_NAME'], args)
 to_zone = tz.gettz('US/Pacific')
 
 ################ Extract Job Parameters#########################
-jobName = args['JOB_NAME']
+jobName = args['JOB_NAME'].lower()
+jobNameSameCase = args['JOB_NAME']
 print(jobName)
+print("job change 1")
 environment = args['Environment'].lower()
 curatedS3BucketName = args['target_BucketName']
 rawS3BucketName = args['source_BucketName']
@@ -73,7 +75,7 @@ dynamodb_r = boto3.resource('dynamodb')
 
 ##todo - add error handling
 compactJobParamItems = dynamodb_r.Table(controlTableName).query(
-    KeyConditionExpression=Key('glue_job_name').eq(jobName)
+    KeyConditionExpression=Key('glue_job_name').eq(jobNameSameCase)
 )
 
 
@@ -285,22 +287,22 @@ def process_raw_data(ctrlRec):
         ########################################################################################################
         #####Get records from raw bucket#######################################################################
         ########################################################################################################
-        # inputDyf = glueContext.create_dynamic_frame_from_options(connection_type='s3',
-        #                                                          connection_options={'paths': rawBucketS3PathsList,
-        #                                                                              'groupFiles': 'none',
-        #                                                                              'recurse': True},
-        #                                                          format='parquet',
-        #                                                          transformation_ctx=tableName)
-        inputDyf = glueContext.create_dynamic_frame.from_options(
-                                                        format_options={"quoteChar": '"', "withHeader": True, "separator": ","},
-                                                        connection_type="s3",
-                                                        format="csv",
-                                                        connection_options={
-                                                            "paths": rawBucketS3PathsList,
-                                                            "recurse": True,
-                                                        },
-                                                        transformation_ctx=tableName
-                                                    )
+        inputDyf = glueContext.create_dynamic_frame_from_options(connection_type='s3',
+                                                                 connection_options={'paths': rawBucketS3PathsList,
+                                                                                     'groupFiles': 'none',
+                                                                                     'recurse': True},
+                                                                 format='parquet',
+                                                                 transformation_ctx=tableName)
+        # inputDyf = glueContext.create_dynamic_frame.from_options(
+        #                                                 format_options={"quoteChar": '"', "withHeader": True, "separator": ","},
+        #                                                 connection_type="s3",
+        #                                                 format="csv",
+        #                                                 connection_options={
+        #                                                     "paths": rawBucketS3PathsList,
+        #                                                     "recurse": True,
+        #                                                 },
+        #                                                 transformation_ctx=tableName
+        #                                             )
         inputStgDf = inputDyf.toDF()
         inputStgDf.printSchema()
         inputStgDf.persist()  # persist this dataframe to avoid reading from raw S3 multiple times.
@@ -374,7 +376,7 @@ def process_raw_data(ctrlRec):
 
             commonConfig = {'className': 'org.apache.hudi',
                             'hoodie.datasource.hive_sync.use_jdbc': 'false',
-                            # 'hoodie.datasource.write.precombine.field': 'update_ts_dms',
+                            'hoodie.datasource.write.precombine.field': 'measurement_value',
                             'hoodie.datasource.write.recordkey.field': primaryKey,
                             'hoodie.table.name': tableName,
                             'hoodie.consistency.check.enabled': 'true',

@@ -1,3 +1,5 @@
+Questions for Satish
+Why log and print
 ---------04/08/22--------
 Incorporate control table(CSV) to DynamoDB - Nikhil - In progress
 Incorporate Glue script to CDK - Nikhil - Done

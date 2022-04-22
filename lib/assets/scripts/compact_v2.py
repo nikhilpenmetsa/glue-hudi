@@ -53,14 +53,11 @@ to_zone = tz.gettz('US/Pacific')
 ################ Extract Job Parameters#########################
 jobName = args['JOB_NAME'].lower()
 jobNameSameCase = args['JOB_NAME']
-print(jobName)
-print("job change 1")
 environment = args['Environment'].lower()
 curatedS3BucketName = args['target_BucketName']
 rawS3BucketName = args['source_BucketName']
 libBucketName = args['lib_BucketName']
 controlTableName = args['control_Table']
-print(controlTableName)
 controlFileLocation = "s3://"+libBucketName+"/config/control_file.csv"
 controlFileJSONLocation = "s3://"+libBucketName+"/config/control_file.json"
 
@@ -78,16 +75,7 @@ compactJobParamItems = dynamodb_r.Table(controlTableName).query(
     KeyConditionExpression=Key('glue_job_name').eq(jobNameSameCase)
 )
 
-
 ctrlRecsList = compactJobParamItems['Items']
-
-print(ctrlRecsList)
-print(len(ctrlRecsList))
-
-# for compactJobParams in compactJobParamItems['Items']:
-#     print("printing job params from dynamo db")
-#     print(compactJobParams)
-
 
 
 dropColumnList = ['db', 'op', 'schema_name', 'transaction_id', 'seq_by_pk']
@@ -95,48 +83,6 @@ dropColumnList = ['db', 'op', 'schema_name', 'transaction_id', 'seq_by_pk']
 def main():
     try:
         output_log_info = ""
-        ########################################################################################################
-        ##### Load Control File ###################################################################################
-        ########################################################################################################
-        # ctrl_schema = StructType([
-        #                           StructField("db_name", StringType(), True),
-        #                           StructField("schema_name", StringType(), True),
-        #                           StructField("table_name", StringType(), True),
-        #                           StructField("primary_key", StringType(), True),
-        #                           StructField("partition_key", StringType(), True),
-        #                           StructField("hudi_storage_type", StringType(), True),
-        #                           StructField("glue_job_name", StringType(), True),
-        #                           StructField("dms_full_load_partitioned", StringType(), True),
-        #                           StructField("hudi_bulkinsert_shuffle_parallelism", IntegerType(), True),
-        #                           StructField("hudi_upsert_shuffle_parallelism", IntegerType(), True),
-        #                         #   StructField("s3_to_redshift", StringType(), True),
-        #                           StructField("cdc_split_upsert", StringType(), True),
-        #                         #   StructField("redshift_timestamp_cols", StringType(), True)
-        #                           ]
-        #                          )
-
-        # ctrlDf = spark.read.schema(ctrl_schema).option("header", "true").csv(controlFileLocation) \
-        #     .withColumn('db_name', lower(col('db_name'))) \
-        #     .withColumn('schema_name', lower(col('schema_name'))) \
-        #     .withColumn('table_name', lower(col('table_name'))) \
-        #     .withColumn('primary_key', lower(col('primary_key'))) \
-        #     .withColumn('partition_key', lower(col('partition_key'))) \
-        #     .withColumn('hudi_storage_type', lower(col('hudi_storage_type'))) \
-        #     .withColumn('glue_job_name', lower(col('glue_job_name'))) \
-        #     .withColumn('dms_full_load_partitioned', lower(col('dms_full_load_partitioned'))) \
-        #     .withColumn('cdc_split_upsert', lower(col('cdc_split_upsert')))
-
-
-
-
-        # ctrlRecsList = ctrlDf.select('db_name', 'schema_name', 'table_name', 'primary_key', 'partition_key',
-        #                              'hudi_storage_type', 'dms_full_load_partitioned',
-        #                              'hudi_bulkinsert_shuffle_parallelism', 'hudi_upsert_shuffle_parallelism',
-        #                              'cdc_split_upsert') \
-        #     .filter("glue_job_name = " + "'" + jobName + "'") \
-        #     .distinct() \
-        #     .rdd.map(lambda row: row.asDict()) \
-        #     .collect()
 
         print('--------------- ctrlRecsList Count: {} ---------------'.format(len(ctrlRecsList)))
 
@@ -162,7 +108,7 @@ def main():
                     response = glueClient.create_database(DatabaseInput={
                         'Name': glueDbName,
                         'Description': 'Database ' + glueDbName + ' created by Glue Compaction Job.'
-                    }
+                        }
                     )
 
                     isGlueDbCreationSuccess = True
@@ -237,6 +183,8 @@ def process_raw_data(ctrlRec):
 
             #########So setting dummy partition key: TABLE_NAME column##############
         # if (isCompositePk == True and isPartitionKey == False):
+        #new version of hudi performs faster when a certain partition key is used. So setting partion key as table_name.
+        
         if (isPartitionKey == False):
             isPartitionKey = True
             partitionKey = 'table_name'
@@ -268,6 +216,7 @@ def process_raw_data(ctrlRec):
         ########################################################################################################
         #####Build Raw S3 bucket Path List to read data#########################################################
         ########################################################################################################
+        #todo nikhil remove dms_full_load_partitioned logic
         if ctrlRec['dms_full_load_partitioned'] == 'yes':
             print('{} : In dms_full_load_partitioned.'.format(ctrlRec['table_name']))
             rawBucketS3PathsList = [

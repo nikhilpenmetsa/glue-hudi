@@ -23,6 +23,7 @@ from time import sleep
 
 import boto3
 from botocore.exceptions import ClientError, ParamValidationError
+from boto3.dynamodb.conditions import Key
 
 ###########################n############################################################################
 #####Variables Initilization############################################################################
@@ -34,7 +35,8 @@ args = getResolvedOptions(sys.argv, [
     'Environment',
     'source_BucketName',
     'target_BucketName',
-    'lib_BucketName'
+    'lib_BucketName',
+    'control_Table'
     ])
 
 spark = SparkSession.builder \
@@ -50,81 +52,37 @@ to_zone = tz.gettz('US/Pacific')
 
 ################ Extract Job Parameters#########################
 jobName = args['JOB_NAME'].lower()
+jobNameSameCase = args['JOB_NAME']
 environment = args['Environment'].lower()
-
-logger = glueContext.get_logger()
-
-logger.info('Fetching configuration.')
-region = os.environ['AWS_DEFAULT_REGION']
-
-
-# *************Glue Client*******************
-glueClient = boto3.client('glue')
-
-
-####################### Setting Source and Target bucket names######################################
-#curatedS3BucketName = 'mycuratedbuckets3'
-#curatedS3BucketName = 'np-glue-hudi-processed2'
-
-#rawS3BucketName = 'myrawbuckets3'
-#rawS3BucketName = 'np-glue-hudi-raw2'
-
 curatedS3BucketName = args['target_BucketName']
 rawS3BucketName = args['source_BucketName']
 libBucketName = args['lib_BucketName']
+controlTableName = args['control_Table']
+controlFileLocation = "s3://"+libBucketName+"/config/control_file.csv"
+controlFileJSONLocation = "s3://"+libBucketName+"/config/control_file.json"
 
+logger = glueContext.get_logger()
+logger.info('Fetching configuration.')
+region = os.environ['AWS_DEFAULT_REGION']
 log_info_file_name = 'logs/{}/info_{}.json'.format(jobName, str(
     datetime.now().astimezone(to_zone).strftime('%Y-%m-%d %H:%M:%S.%f')))
 
-#controlFileLocation = "s3://myrawbuckets3/control_file.csv"
-controlFileLocation = "s3://"+libBucketName+"/config/control_file.csv"
+glueClient = boto3.client('glue')
+dynamodb_r = boto3.resource('dynamodb') 
+
+##todo - add error handling
+compactJobParamItems = dynamodb_r.Table(controlTableName).query(
+    KeyConditionExpression=Key('glue_job_name').eq(jobNameSameCase)
+)
+
+ctrlRecsList = compactJobParamItems['Items']
 
 
 dropColumnList = ['db', 'op', 'schema_name', 'transaction_id', 'seq_by_pk']
 
-
 def main():
     try:
         output_log_info = ""
-        ########################################################################################################
-        ##### Load Control File ###################################################################################
-        ########################################################################################################
-        ctrl_schema = StructType([
-                                  StructField("db_name", StringType(), True),
-                                  StructField("schema_name", StringType(), True),
-                                  StructField("table_name", StringType(), True),
-                                  StructField("primary_key", StringType(), True),
-                                  StructField("partition_key", StringType(), True),
-                                  StructField("hudi_storage_type", StringType(), True),
-                                  StructField("glue_job_name", StringType(), True),
-                                  StructField("dms_full_load_partitioned", StringType(), True),
-                                  StructField("hudi_bulkinsert_shuffle_parallelism", IntegerType(), True),
-                                  StructField("hudi_upsert_shuffle_parallelism", IntegerType(), True),
-                                  StructField("s3_to_redshift", StringType(), True),
-                                  StructField("cdc_split_upsert", StringType(), True),
-                                  StructField("redshift_timestamp_cols", StringType(), True)
-                                  ]
-                                 )
-
-        ctrlDf = spark.read.schema(ctrl_schema).option("header", "true").csv(controlFileLocation) \
-            .withColumn('db_name', lower(col('db_name'))) \
-            .withColumn('schema_name', lower(col('schema_name'))) \
-            .withColumn('table_name', lower(col('table_name'))) \
-            .withColumn('primary_key', lower(col('primary_key'))) \
-            .withColumn('partition_key', lower(col('partition_key'))) \
-            .withColumn('hudi_storage_type', lower(col('hudi_storage_type'))) \
-            .withColumn('glue_job_name', lower(col('glue_job_name'))) \
-            .withColumn('dms_full_load_partitioned', lower(col('dms_full_load_partitioned'))) \
-            .withColumn('cdc_split_upsert', lower(col('cdc_split_upsert')))
-
-        ctrlRecsList = ctrlDf.select('db_name', 'schema_name', 'table_name', 'primary_key', 'partition_key',
-                                     'hudi_storage_type', 'dms_full_load_partitioned',
-                                     'hudi_bulkinsert_shuffle_parallelism', 'hudi_upsert_shuffle_parallelism',
-                                     'cdc_split_upsert') \
-            .filter("glue_job_name = " + "'" + jobName + "'") \
-            .distinct() \
-            .rdd.map(lambda row: row.asDict()) \
-            .collect()
 
         print('--------------- ctrlRecsList Count: {} ---------------'.format(len(ctrlRecsList)))
 
@@ -150,7 +108,7 @@ def main():
                     response = glueClient.create_database(DatabaseInput={
                         'Name': glueDbName,
                         'Description': 'Database ' + glueDbName + ' created by Glue Compaction Job.'
-                    }
+                        }
                     )
 
                     isGlueDbCreationSuccess = True
@@ -168,7 +126,7 @@ def main():
                 if isGlueDbCreationSuccess == True:
                     result = process_raw_data(ctrlRec)
                 else:
-                    log_message = 'Glue GB : {} does not exist neither got created'.format(glueDbName)
+                    log_message = 'Glue DB : {} does not exist neither got created'.format(glueDbName)
                     print(log_message)
 
         else:
@@ -225,6 +183,8 @@ def process_raw_data(ctrlRec):
 
             #########So setting dummy partition key: TABLE_NAME column##############
         # if (isCompositePk == True and isPartitionKey == False):
+        #new version of hudi performs faster when a certain partition key is used. So setting partion key as table_name.
+        
         if (isPartitionKey == False):
             isPartitionKey = True
             partitionKey = 'table_name'
@@ -256,6 +216,7 @@ def process_raw_data(ctrlRec):
         ########################################################################################################
         #####Build Raw S3 bucket Path List to read data#########################################################
         ########################################################################################################
+        #todo nikhil remove dms_full_load_partitioned logic
         if ctrlRec['dms_full_load_partitioned'] == 'yes':
             print('{} : In dms_full_load_partitioned.'.format(ctrlRec['table_name']))
             rawBucketS3PathsList = [
@@ -275,22 +236,22 @@ def process_raw_data(ctrlRec):
         ########################################################################################################
         #####Get records from raw bucket#######################################################################
         ########################################################################################################
-        # inputDyf = glueContext.create_dynamic_frame_from_options(connection_type='s3',
-        #                                                          connection_options={'paths': rawBucketS3PathsList,
-        #                                                                              'groupFiles': 'none',
-        #                                                                              'recurse': True},
-        #                                                          format='parquet',
-        #                                                          transformation_ctx=tableName)
-        inputDyf = glueContext.create_dynamic_frame.from_options(
-                                                        format_options={"quoteChar": '"', "withHeader": True, "separator": ","},
-                                                        connection_type="s3",
-                                                        format="csv",
-                                                        connection_options={
-                                                            "paths": rawBucketS3PathsList,
-                                                            "recurse": True,
-                                                        },
-                                                        transformation_ctx=tableName
-                                                    )
+        inputDyf = glueContext.create_dynamic_frame_from_options(connection_type='s3',
+                                                                 connection_options={'paths': rawBucketS3PathsList,
+                                                                                     'groupFiles': 'none',
+                                                                                     'recurse': True},
+                                                                 format='parquet',
+                                                                 transformation_ctx=tableName)
+        # inputDyf = glueContext.create_dynamic_frame.from_options(
+        #                                                 format_options={"quoteChar": '"', "withHeader": True, "separator": ","},
+        #                                                 connection_type="s3",
+        #                                                 format="csv",
+        #                                                 connection_options={
+        #                                                     "paths": rawBucketS3PathsList,
+        #                                                     "recurse": True,
+        #                                                 },
+        #                                                 transformation_ctx=tableName
+        #                                             )
         inputStgDf = inputDyf.toDF()
         inputStgDf.printSchema()
         inputStgDf.persist()  # persist this dataframe to avoid reading from raw S3 multiple times.
@@ -364,7 +325,7 @@ def process_raw_data(ctrlRec):
 
             commonConfig = {'className': 'org.apache.hudi',
                             'hoodie.datasource.hive_sync.use_jdbc': 'false',
-                            # 'hoodie.datasource.write.precombine.field': 'update_ts_dms',
+                            'hoodie.datasource.write.precombine.field': 'measurement_value',
                             'hoodie.datasource.write.recordkey.field': primaryKey,
                             'hoodie.table.name': tableName,
                             'hoodie.consistency.check.enabled': 'true',

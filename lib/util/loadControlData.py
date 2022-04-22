@@ -1,12 +1,18 @@
 import boto3
 import json
 from boto3.dynamodb.conditions import Key
+import sys
 
 dynamodb_r = boto3.resource('dynamodb') 
 #todo ...get table name
-table = dynamodb_r.Table('CdkGlueTestStack-gluetable2B8EEA762-1S25F7QEEIW6M')
+tableName = sys.argv[1]
+#print(tableName)
+#print("all arg", str(sys.argv))
+#table = dynamodb_r.Table('GlueControlTable')
+table = dynamodb_r.Table(tableName)
+#print("dynamodb table", table)
 
-f = open('sample_control_data.json')
+f = open('lib/assets/config/control_file.json')
 request_items = json.loads(f.read())
 # response = dynamodb_c.batch_write_item(RequestItems=request_items)
 # print(len(request_items))

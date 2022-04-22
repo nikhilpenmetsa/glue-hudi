@@ -84,10 +84,9 @@ export class PreReqStack extends Stack {
     })
  
  
-
     const controlTable = new Table(this, 'gluetable2', {
       partitionKey: {name: 'glue_job_name', type: AttributeType.STRING},
-      sortKey: {name: 'tablename_and_pk', type: AttributeType.STRING},
+      sortKey: {name: 'table_name', type: AttributeType.STRING},
       tableName : "GlueControlTable",
       billingMode: BillingMode.PAY_PER_REQUEST, 
     })

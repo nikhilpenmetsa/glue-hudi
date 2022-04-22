@@ -11,7 +11,7 @@ echo "Installing jq..."
 sudo yum install -y jq > /dev/null 2>&1
 
 echo "Deploying staging stack - buckets, scripts.."
-cdk deploy PreReqStack
+cdk deploy PreReqStack --require-approval never
 jarBucket=`aws cloudformation describe-stacks --stack-name prereqStack --query "Stacks[0].Outputs" --output json | jq -rc '.[] | select(.OutputKey | startswith("ExportsOutputRefnplibsbucket")) | .OutputValue '`
 
 
@@ -23,3 +23,7 @@ aws s3 cp hudi-spark-bundle_2.11-0.10.1.jar s3://$jarBucket/jars/
 echo "completed uploading"  
 
 rm hudi-spark-bundle_2.11-0.10.1.jar
+
+echo "Insert job control configs into DynamoDB table"
+glueControlTable=`aws cloudformation describe-stacks --stack-name prereqStack --query "Stacks[0].Outputs" --output json | jq -rc '.[] | select(.OutputKey | startswith("ExportsOutputRefgluetable")) | .OutputValue '`
+python lib/util/loadControlData.py $glueControlTable

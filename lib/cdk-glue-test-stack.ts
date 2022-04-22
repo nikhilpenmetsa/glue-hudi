@@ -92,6 +92,7 @@ export class CdkGlueTestStack extends Stack {
         "--source_BucketName": importBucket.bucketName,
         "--target_BucketName": processedBucket.bucketName,
         "--lib_BucketName": libraryBucket.bucketName,
+        "--control_Table": controlTable.tableName,
         "--additional-python-modules": "boto3==1.17.39,botocore==1.20.39",
         "--enable-glue-datacatalog": "",
         "--Environment": "demo"

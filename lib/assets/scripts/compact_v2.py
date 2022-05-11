@@ -1,11 +1,12 @@
 ###########################n############################################################################
 #####Import required libraries############################################################################
 ###########################n############################################################################
+import re
 import sys
 import os
-import json
-from datetime import datetime
-from dateutil import tz
+import boto3
+from botocore.exceptions import ClientError, ParamValidationError
+from boto3.dynamodb.conditions import Key
 
 from pyspark.context import SparkContext
 from pyspark.sql.session import SparkSession
@@ -18,18 +19,6 @@ from awsglue.context import GlueContext
 from awsglue.job import Job
 from awsglue.dynamicframe import DynamicFrame
 
-import concurrent.futures
-from time import sleep
-
-import boto3
-from botocore.exceptions import ClientError, ParamValidationError
-from boto3.dynamodb.conditions import Key
-
-###########################n############################################################################
-#####Variables Initilization############################################################################
-###########################n############################################################################
-
-# args = getResolvedOptions(sys.argv, ['JOB_NAME', 'Environment', 'SandboxNumber'])
 args = getResolvedOptions(sys.argv, [
     'JOB_NAME',
     'Environment',
@@ -46,536 +35,367 @@ glueContext = GlueContext(spark.sparkContext)
 job = Job(glueContext)
 job.init(args['JOB_NAME'], args)
 
-#todo - generelazie timezone.
-# Set Time zione to PST
-to_zone = tz.gettz('US/Pacific')
 
-################ Extract Job Parameters#########################
-jobName = args['JOB_NAME'].lower()
-jobNameSameCase = args['JOB_NAME']
+glueClient = boto3.client('glue')
+dynamodbResource = boto3.resource('dynamodb')
+
+#todo
+#glueDbName = "test123"
+#controlTableName = "GlueControlTable"
+#jobName = "MeterMeasurementsHudiCompactionJob"
+#rawS3BucketName = "prereqstack-nprawbucket1234aa1d7f3-1v6hy5h0ui175"
+#curatedS3BucketName = "prereqstack-npprocessedbucket1236647d47f-tfz4a3jonh7r"
+
+jobName = args['JOB_NAME']
 environment = args['Environment'].lower()
 curatedS3BucketName = args['target_BucketName']
 rawS3BucketName = args['source_BucketName']
 libBucketName = args['lib_BucketName']
 controlTableName = args['control_Table']
-controlFileLocation = "s3://"+libBucketName+"/config/control_file.csv"
-controlFileJSONLocation = "s3://"+libBucketName+"/config/control_file.json"
-
-logger = glueContext.get_logger()
-logger.info('Fetching configuration.')
-region = os.environ['AWS_DEFAULT_REGION']
-log_info_file_name = 'logs/{}/info_{}.json'.format(jobName, str(
-    datetime.now().astimezone(to_zone).strftime('%Y-%m-%d %H:%M:%S.%f')))
-
-glueClient = boto3.client('glue')
-dynamodb_r = boto3.resource('dynamodb') 
-
-##todo - add error handling
-compactJobParamItems = dynamodb_r.Table(controlTableName).query(
-    KeyConditionExpression=Key('glue_job_name').eq(jobNameSameCase)
-)
-
-ctrlRecsList = compactJobParamItems['Items']
-
 
 dropColumnList = ['db', 'op', 'schema_name', 'transaction_id', 'seq_by_pk']
 
-def main():
+def getJobControlProperties():
+    
+    jobControlProps = {}
     try:
-        output_log_info = ""
-
-        print('--------------- ctrlRecsList Count: {} ---------------'.format(len(ctrlRecsList)))
-
-        if len(ctrlRecsList) > 0:
-            ctrlRecsToProcessList = []
-            for ctrlRec in ctrlRecsList:
-                logger.info('Looping for ' + ctrlRec['schema_name'] + '.' + ctrlRec['table_name'])
-                print('-----------Looping for {}.{} -----------'.format(ctrlRec['schema_name'], ctrlRec['table_name']))
-
-                # *****************Setting Global Variables *****************************
-                dbName = ctrlRec['db_name']
-                schemaName = ctrlRec['schema_name']
-                glueDbName = ('dl_' + dbName + '_' + schemaName).lower()
-                tableNameCatalogCheck = ''
-                tableName = ctrlRec['table_name']
-
-                ###########################n############################################################################
-                #####Create Glue Database if it does not exists#########################################################
-                ###########################n############################################################################
-                logger.info('Create Glue Datacatalog if it does not exists.')
-                # print('Create Glue Datacatalog if it does not exists.')
-                try:
-                    response = glueClient.create_database(DatabaseInput={
-                        'Name': glueDbName,
-                        'Description': 'Database ' + glueDbName + ' created by Glue Compaction Job.'
-                        }
-                    )
-
-                    isGlueDbCreationSuccess = True
-                    print('{} : Created Glue Db.'.format(ctrlRec['table_name']))
-                except ClientError as e:
-                    if e.response['Error']['Code'] == 'AlreadyExistsException':
-                        isGlueDbCreationSuccess = True
-                        logger.info('Glue Db Already Exists')
-                        print('{} : Glue Db Already Exist.'.format(ctrlRec['table_name']))
-                    else:
-                        logger.info('Error creating Glue Database:')
-                        print('Error creating Glue Database:', e.response['Error']['Code'])
-                        isGlueDbCreationSuccess = False
-
-                if isGlueDbCreationSuccess == True:
-                    result = process_raw_data(ctrlRec)
-                else:
-                    log_message = 'Glue DB : {} does not exist neither got created'.format(glueDbName)
-                    print(log_message)
-
-        else:
-            log_message = 'No tables setup in Glue Control file for {} and {}'.format(jobName, environment)
-            print(log_message)
-
-        job.commit()
-        print("Job commited successfully")
+        response = dynamodbResource.Table(controlTableName).query(KeyConditionExpression=Key('glue_job_name').eq(jobName))
+        jobControlProps = response['Items']
     except Exception as ex:
-        print("gluecompactionjoberror: main method failed with exception: " + str(ex))
-        raise ex
+        print("Exception fectching job control properties: " + str(ex))
+    
+    return jobControlProps
 
+def glueDBExists(glueDbName):
 
-# *************Method to construct log object******************************************
-def process_raw_data(ctrlRec):
+    glueDBExists = False
     try:
-        print('{} : Started process_raw_data.'.format(ctrlRec['table_name']))
-        ########################## Variables Initilization #############################
-        dbName = ctrlRec['db_name']
-        schemaName = ctrlRec['schema_name']
-        tableName = ctrlRec['table_name']
-        # glueDbName = ('dl_' + dbName + '_' + schemaName).lower()
-        glueDbName = ('dl_' + dbName + '_' + schemaName).lower()
-        tableNameCatalogCheck = ''
+        response = glueClient.get_database(Name=glueDbName)
+        glueDBExists = True
+        print("Glue database {} found in default catalog".format(glueDbName))
+    except ClientError as e:
+        if e.response['Error']['Code'] == 'EntityNotFoundException':
+            print("Glue database {} not found in default catalog".format(glueDbName))
+        else:
+            print("Exception getting glue catalog database details: " + str(e))
 
-        isTableExists = False
-        isPrimaryKey = False
-        isCompositePk = False
-        primaryKey = ''
-        isPartitionKey = False
-        isCompositePartitionKey = False
-        partitionKey = ''
-        hudiStorageType = ''
+    return glueDBExists
 
-        # print(
-        #     'Processing records in {} bucket for dbName: {} , schemaName: {} , and tableName: {}. Glue DB name is : {}.'.format(
-        #         rawS3BucketName, dbName, schemaName, tableName, glueDbName))
+def createGlueDB(glueDbName):
 
-        ##########################Check for PK#############################
-        if not ctrlRec['primary_key'] is None:
-            isPrimaryKey = True
-            primaryKey = ctrlRec['primary_key'].replace(';', ',')
-            # verify for Composite Pk
-            if (',' in primaryKey):
-                isCompositePk = True
+    try:
+        response = glueClient.create_database(DatabaseInput={
+            'Name': glueDbName,
+            'Description': 'Database ' + glueDbName + ' created by Glue Compaction Job.'
+            }
+        )
+        print('{} : Created Glue Db.'.format(glueDbName))
+    except ClientError as e:
+        print('Error creating Glue Database:', e.response['Error']['Code'])
 
-        ##########################Check for Partition Key###################
-        if not ctrlRec['partition_key'] is None:
-            isPartitionKey = True
-            partitionKey = ctrlRec['partition_key'].replace(';', ',')
-            # verify for multi paritionkey
-            if (',' in partitionKey):
-                isCompositePartitionKey = True
+def tableExists(glueDbName,tableNameCatalogCheck):
 
-            #########So setting dummy partition key: TABLE_NAME column##############
-        # if (isCompositePk == True and isPartitionKey == False):
-        #new version of hudi performs faster when a certain partition key is used. So setting partion key as table_name.
+    tableExists = False
+    try:
+        glueClient.get_table(DatabaseName=glueDbName, Name=tableNameCatalogCheck)
+        tableExists = True
+        print('{} : Table exists in Glue Data Catalog.'.format(tableNameCatalogCheck))
+    except ClientError as e:
+        if e.response['Error']['Code'] == 'EntityNotFoundException':
+            tableExists = False
+            print('{} : Table does not exist, and will be created in Glue Data Catalog.'.format(tableNameCatalogCheck))
+
+    return tableExists
+
+def enrichJobControlProperties(jobControlRec):
+
+    #set composite key if exists
+    jobControlRec['isCompositePk'] = False
+    jobControlRec['isPrimaryKey'] = False
+    if not jobControlRec['primary_key'] is None:
+        #isPrimaryKey = True
+        jobControlRec['isPrimaryKey'] = True
+        primaryKey = jobControlRec['primary_key'].replace(';', ',')
+        # verify for Composite Pk
+        if (',' in primaryKey):
+            isCompositePk = True
+            jobControlRec['isCompositePk'] = True
+
+
+    #set composite partition key if exists
+    jobControlRec['isCompositePartitionKey'] = False
+    jobControlRec['isPartitionKey'] = False
+    if not jobControlRec['partition_key'] is None:
+        #isPartitionKey = True
+        jobControlRec['isPartitionKey'] = True
+        partitionKey = jobControlRec['partition_key'].replace(';', ',')
+        # verify for multi paritionkey
+        if (',' in partitionKey):
+            isCompositePartitionKey = True
+            jobControlRec['isCompositePartitionKey'] = True
+
+
+    #Check for hudi storage type to calculate table name
+    jobControlRec['tableNameCatalogCheck'] = jobControlRec['table_name']
+    if not jobControlRec['hudi_storage_type'] is None and (jobControlRec['hudi_storage_type'] == 'mor'):
+        jobControlRec['tableNameCatalogCheck'] = jobControlRec['table_name'] + '_ro'  # Assumption is that if _ro table exists then _rt table will also exist. Hence we are checking only for _ro.
+
+    #set table exists property
+    jobControlRec['tableExists'] = False
+    jobControlRec['isInitalLoad'] = True #implies table does not exist
+    if tableExists(jobControlRec['glueDbName'],jobControlRec['tableNameCatalogCheck']):
+        jobControlRec['tableExists'] = True
+        jobControlRec['isInitalLoad'] = False
+
+    return jobControlRec
+
+def defineGlobalHudiConfigs(jobControlRec):
+
+    hudiConfigs = {}
+    morConfig = {
+        'hoodie.datasource.write.storage.type': 'MERGE_ON_READ',
+        'hoodie.compact.inline': 'false',
+        'hoodie.compact.inline.max.delta.commits': 20,
+        'hoodie.parquet.small.file.limit': 0
+    }
+    hudiConfigs['morConfig'] = morConfig
+
+    commonConfig = {
+        'className': 'org.apache.hudi',
+        'hoodie.datasource.hive_sync.use_jdbc': 'false',
+        'hoodie.datasource.write.precombine.field': 'measurement_value',#todo
+        'hoodie.datasource.write.recordkey.field': jobControlRec['primary_key'].replace(';', ','),
+        'hoodie.table.name': jobControlRec['table_name'] ,
+        'hoodie.consistency.check.enabled': 'true',
+        'hoodie.datasource.hive_sync.database': jobControlRec['glueDbName'],
+        'hoodie.datasource.hive_sync.table': jobControlRec['table_name'] ,
+        'hoodie.datasource.hive_sync.enable': 'true',
+        'hoodie.datasource.hive_sync.support_timestamp': 'true',
+        'hoodie.datasource.hive_sync.mode': 'hms'
+    }
+    hudiConfigs['commonConfig'] = commonConfig
+
+    multiPkConfig = {
+        'hoodie.datasource.write.keygenerator.class': 'org.apache.hudi.keygen.ComplexKeyGenerator'
+    }
+    hudiConfigs['multiPkConfig'] = multiPkConfig
+
+    partitionDataConfig = {
+        'hoodie.datasource.write.partitionpath.field': jobControlRec['partition_key'].replace(';', ','),
+        'hoodie.datasource.hive_sync.partition_fields': jobControlRec['partition_key'].replace(';', ','),
+        'hoodie.datasource.write.hive_style_partitioning': 'true',
+        'hoodie.datasource.hive_sync.partition_extractor_class': 'org.apache.hudi.hive.HiveStylePartitionValueExtractor',
+        'hoodie.datasource.write.keygenerator.consistent.logical.timestamp.enabled': 'true'
+    }
+    hudiConfigs['partitionDataConfig'] = partitionDataConfig
+
+    unpartitionDataConfig = {
+        'hoodie.datasource.hive_sync.partition_extractor_class': 'org.apache.hudi.hive.NonPartitionedExtractor',
+        'hoodie.datasource.write.keygenerator.class': 'org.apache.hudi.keygen.NonpartitionedKeyGenerator'
+    }
+    hudiConfigs['unpartitionDataConfig'] = unpartitionDataConfig
+
+    incrementalConfig = {
+        'hoodie.upsert.shuffle.parallelism': jobControlRec['hudi_upsert_shuffle_parallelism'],
+        'hoodie.datasource.write.operation': 'upsert',
+        'hoodie.cleaner.policy': 'KEEP_LATEST_COMMITS',
+        'hoodie.cleaner.commits.retained': 10
+    }
+    hudiConfigs['incrementalConfig'] = incrementalConfig
+
+    insertConfig = {
+        'hoodie.upsert.shuffle.parallelism': jobControlRec['hudi_upsert_shuffle_parallelism'],
+        'hoodie.datasource.write.operation': 'insert'
+    }
+    hudiConfigs['insertConfig'] = insertConfig
+
+    initLoadConfig = {
+        'hoodie.bulkinsert.shuffle.parallelism': jobControlRec['hudi_bulkinsert_shuffle_parallelism'],
+        'hoodie.datasource.write.operation': 'bulk_insert',
+        'hoodie.parquet.writelegacyformat.enabled': 'true',
+        'hoodie.parquet.outputtimestamptype': 'TIMESTAMP_MICROS'
+    }
+    hudiConfigs['initLoadConfig'] = initLoadConfig
+
+    deleteDataConfig = {
+        'hoodie.datasource.write.payload.class': 'org.apache.hudi.common.model.EmptyHoodieRecordPayload'
+    }
+    hudiConfigs['deleteDataConfig'] = deleteDataConfig
+
+    if not jobControlRec['hudi_storage_type'] is None and (jobControlRec['hudi_storage_type'] == 'mor'):
+        hudiConfigs['commonConfig'] = {**hudiConfigs['commonConfig'], ** hudiConfigs['morConfig']}
+
+    return hudiConfigs
+
+def getHudiConfigForInitialLoad(globalHudiConfigs,jobControlRec):
+    
+    hudiConfigs = {}
+    if (jobControlRec['isPartitionKey']):
+        hudiConfigs = {**globalHudiConfigs['commonConfig'], **globalHudiConfigs['partitionDataConfig'], **globalHudiConfigs['initLoadConfig']}
+        if (jobControlRec['isCompositePk']):
+            hudiConfigs = {**hudiConfigs,**globalHudiConfigs['multiPkConfig']}
+    else:
+        hudiConfigs = {**globalHudiConfigs['commonConfig'], **globalHudiConfigs['unpartitionDataConfig'], **globalHudiConfigs['initLoadConfig']}
+        if (jobControlRec['isCompositePk']):
+            hudiConfigs = {**hudiConfigs,**globalHudiConfigs['multiPkConfig']}
+
+    return hudiConfigs
+
+def getHudiConfigForIncrementalLoad(globalHudiConfigs,jobControlRec):
+
+    hudiConfigs = {}
+    if (jobControlRec['isPartitionKey']):
+        hudiConfigs = {**globalHudiConfigs['commonConfig'], **globalHudiConfigs['partitionDataConfig'], **globalHudiConfigs['incrementalConfig']}
+        if (jobControlRec['isCompositePk']):
+            hudiConfigs = {**hudiConfigs,**globalHudiConfigs['multiPkConfig']}
+    else:
+        hudiConfigs = {**globalHudiConfigs['commonConfig'], **globalHudiConfigs['unpartitionDataConfig'], **globalHudiConfigs['incrementalConfig']}
+        if (jobControlRec['isCompositePk']):
+            hudiConfigs = {**hudiConfigs,**globalHudiConfigs['multiPkConfig']}
+
+    return hudiConfigs
+
+def getHudiConfigForDeletes(globalHudiConfigs,jobControlRec):
+
+    hudiConfigs = {}
+    if (jobControlRec['isPartitionKey']):
+        hudiConfigs = {**globalHudiConfigs['commonConfig'], **globalHudiConfigs['partitionDataConfig'], **globalHudiConfigs['incrementalConfig'], **globalHudiConfigs['deleteDataConfig']}
+        if (jobControlRec['isCompositePk']):
+            hudiConfigs = {**hudiConfigs,**globalHudiConfigs['multiPkConfig']}
+    else:
+        hudiConfigs = {**globalHudiConfigs['commonConfig'], **globalHudiConfigs['unpartitionDataConfig'], **globalHudiConfigs['incrementalConfig'], **globalHudiConfigs['deleteDataConfig']}
+        if (jobControlRec['isCompositePk']):
+            hudiConfigs = {**hudiConfigs,**globalHudiConfigs['multiPkConfig']}
+
+    return hudiConfigs
+
+
+def process_raw_data(jobControlRec):
+
+    #Enrich job control properties
+    jobControlRec = enrichJobControlProperties(jobControlRec)
+
+    rawBucketS3PathsList = [
+        's3://' + rawS3BucketName + '/' + jobControlRec['db_name'] + '/' + jobControlRec['schema_name'] + '/' + jobControlRec['table_name'] + '/',
+        's3://' + rawS3BucketName + '/' + jobControlRec['db_name'] + '/' + jobControlRec['schema_name'].upper() + '/' + jobControlRec['table_name'].upper() + '/'
+    ]
+
+    inputDyf = glueContext.create_dynamic_frame_from_options(connection_type='s3',
+                    connection_options={'paths': rawBucketS3PathsList,
+                                        'groupFiles': 'none',
+                                        'recurse': True},
+                    format='parquet',
+                    transformation_ctx=jobControlRec['table_name'])
+    inputStgDf = inputDyf.toDF()
+    inputStgDf.printSchema()
+    inputStgDf.persist()  # persist this dataframe to avoid reading from raw S3 multiple times.
+
+    if not inputStgDf.rdd.isEmpty():
+        print('{} : Records found in Raw bucket to load into Curated Bucket. Continue processing'.format(jobControlRec['table_name']))
+        for colName in inputStgDf.columns:
+            inputStgDf = inputStgDf.withColumnRenamed(colName, colName.lower())
+        print('{} : inputStgDf Partitions count: {}, after reading from S3 bucket for CDCs.'.format(jobControlRec['table_name'],inputStgDf.rdd.getNumPartitions()))
+
+        if (jobControlRec['isInitalLoad']):
+            print('{} : Processing Full load.'.format(jobControlRec['table_name']))
+            inputDf = inputStgDf
+            print('{} : inputDf Partitions count:{}, in full load'.format(jobControlRec['table_name'], inputDf.rdd.getNumPartitions()))
+        else:
+            print('{} : Processing incremental load - In Build Raw CDC Query and DF.'.format(jobControlRec['table_name']))
+            inputStgDf.createOrReplaceTempView("inputStgDf_T")
+            #Build Raw CDC Query and DF Dynamically
+            rawCdcQ = """
+                        SELECT *
+                        FROM (
+                                SELECT ROW_NUMBER() OVER(PARTITION BY {str1}  ORDER BY transaction_id DESC ) seq_by_pk, tab.*
+                                    FROM inputStgDf_T tab
+                            ) seq_by_pk_q
+                        WHERE seq_by_pk = 1
+                        """.format(str1=jobControlRec['primary_key'].replace(';', ','))
+
+
+            inputStgNoDupsDf = spark.sql(rawCdcQ)
+            print('{} : inputStgNoDupsDf Partitions count:{}, after window query.'.format(jobControlRec['table_name'],inputStgNoDupsDf.rdd.getNumPartitions()))
+
+            inputDf = inputStgNoDupsDf
+            print('{} : inputDf Partitions count:{}, after window query'.format(jobControlRec['table_name'], inputDf.rdd.getNumPartitions()))
+
         
-        if (isPartitionKey == False):
-            isPartitionKey = True
-            partitionKey = 'table_name'
+        targetPath = 's3://' + curatedS3BucketName + '/' + jobControlRec['db_name'] + '/' + jobControlRec['schema_name'] + '/' + jobControlRec['table_name']
+        
+        #Create a map of all possible hudi configuration options.
+        globalHudiConfigs = defineGlobalHudiConfigs(jobControlRec)
 
-        ##########################Check for hudi storage type###################
-        if not ctrlRec['hudi_storage_type'] is None:
-            hudiStorageType = ctrlRec['hudi_storage_type']
+        #Process initial/full load
+        if(jobControlRec['isInitalLoad']):
+            print("Processing intial load")
+            outputDf = inputDf.drop(*dropColumnList)
+            if not outputDf.rdd.isEmpty():  # if outputDf.count() > 0:
+                hudiConfigs = getHudiConfigForInitialLoad(globalHudiConfigs,jobControlRec)
+                #todo check with Satish
+                #outputDf.write.format('org.apache.hudi').options(hudiConfigs).mode('Append' if jobControlRec['dms_full_load_partitioned'] == 'yes' else 'Overwrite').save(targetPath)
+                outputDf.write.format('org.apache.hudi').options(**hudiConfigs).mode('Append').save(targetPath)
 
-        if (hudiStorageType == 'mor'):
-            tableNameCatalogCheck = tableName + '_ro'  # Assumption is that if _ro table exists then _rt table will also exist. Hence we are checking only for _ro.
+        #Process incremental load
         else:
-            tableNameCatalogCheck = tableName  # The default config in the CF template is CoW. So assumption is that if the user hasn't explicitly requested to create MoR storage type table then we will create CoW tables. Again, if the user overwrites the config with any value other than 'MoR' we will create CoW storage type tables.
+            print("Processing incremental load")
+            #Optimize using bulk inserts and updates
+            if jobControlRec['cdc_split_upsert'] == 'yes':
+                print("Splitting upserts to inserts for bulk insert processing")
+                outputDf_inserted = inputDf.filter("Op = 'I'").drop(*dropColumnList)
+                print('{} : outputDf_inserted Partitions count: {}.'.format(jobControlRec['table_name'], outputDf_inserted.rdd.getNumPartitions()))
 
-        ########################################################################################################
-        #####Check if table exsits in Glue Data Catalog#########################################################
-        ########################################################################################################
-        try:
-            # print('glueDbName:', glueDbName)
-            glueClient.get_table(DatabaseName=glueDbName, Name=tableNameCatalogCheck)
-            print('{} : Table exists in Glue Data Catalog.'.format(ctrlRec['table_name']))
-            isTableExists = True
-            logger.info(dbName + '.' + tableNameCatalogCheck + ' exists.')
-        except ClientError as e:
-            if e.response['Error']['Code'] == 'EntityNotFoundException':
-                isTableExists = False
-                logger.info(dbName + '.' + tableNameCatalogCheck + ' does not exist. Table will be created.')
-                print('{} : Table will be created in Glue Data Catalog.'.format(ctrlRec['table_name']))
+                #Handling inserts
+                print("cdc split inserts will be use same hudi config as initial load")
+                if not outputDf_inserted.rdd.isEmpty():  # outputDf.count() > 0:
+                    hudiConfigs = getHudiConfigForInitialLoad(globalHudiConfigs,jobControlRec)
+                    outputDf_inserted.write.format('org.apache.hudi').options(**hudiConfigs).mode('Append').save(targetPath)
+                    print('{} : in upsert-split-inserts, yes_tab, yes_pk, yes_part. Completed bulk insert, outputDf_inserted df to S3 bucket'.format(jobControlRec['table_name']))
 
-        ########################################################################################################
-        #####Build Raw S3 bucket Path List to read data#########################################################
-        ########################################################################################################
-        #todo nikhil remove dms_full_load_partitioned logic
-        if ctrlRec['dms_full_load_partitioned'] == 'yes':
-            print('{} : In dms_full_load_partitioned.'.format(ctrlRec['table_name']))
-            rawBucketS3PathsList = [
-                's3://' + rawS3BucketName + '/' + dbName + '/' + schemaName + '/' + tableName + '_drop' +
-                jobName.partition("drop")[2] + '/',
-                's3://' + rawS3BucketName + '/' + dbName + '/' + schemaName.upper() + '/' + tableName.upper() + '_DROP' +
-                jobName.partition("drop")[2] + '/'
-            ]
-
-            isTableExists = False  # added here so that all dms_full_load_partitioned jobs are loaded as FULL load/bulkinsert..
-        else:
-            rawBucketS3PathsList = [
-                's3://' + rawS3BucketName + '/' + dbName + '/' + schemaName + '/' + tableName + '/',
-                's3://' + rawS3BucketName + '/' + dbName + '/' + schemaName.upper() + '/' + tableName.upper() + '/'
-            ]
-
-        ########################################################################################################
-        #####Get records from raw bucket#######################################################################
-        ########################################################################################################
-        inputDyf = glueContext.create_dynamic_frame_from_options(connection_type='s3',
-                                                                 connection_options={'paths': rawBucketS3PathsList,
-                                                                                     'groupFiles': 'none',
-                                                                                     'recurse': True},
-                                                                 format='parquet',
-                                                                 transformation_ctx=tableName)
-        # inputDyf = glueContext.create_dynamic_frame.from_options(
-        #                                                 format_options={"quoteChar": '"', "withHeader": True, "separator": ","},
-        #                                                 connection_type="s3",
-        #                                                 format="csv",
-        #                                                 connection_options={
-        #                                                     "paths": rawBucketS3PathsList,
-        #                                                     "recurse": True,
-        #                                                 },
-        #                                                 transformation_ctx=tableName
-        #                                             )
-        inputStgDf = inputDyf.toDF()
-        inputStgDf.printSchema()
-        inputStgDf.persist()  # persist this dataframe to avoid reading from raw S3 multiple times.
-
-
-        if not inputStgDf.rdd.isEmpty():
-
-            ########################################################################################################
-            #####Rename columns to lowercase########################################################################
-            ########################################################################################################
-            for colName in inputStgDf.columns:
-                inputStgDf = inputStgDf.withColumnRenamed(colName, colName.lower())
-
-            print('{} : inputStgDf Partitions count: {}, after reading from S3 bucket for CDCs.'.format(
-                ctrlRec['table_name'],
-                inputStgDf.rdd.getNumPartitions()
-            )
-            )
-            # inputStgDf_Part_cnt = inputStgDf.select(spark_partition_id().alias("partitionId")).groupBy("partitionId").count()
-            # inputStgDf_Part_cnt.show(n=600000)
-            print('{} : Records found in Raw bucket to load into Curated Bucket.'.format(ctrlRec['table_name']))
-
-            if (isTableExists):
-                inputStgDf.createOrReplaceTempView("inputStgDf_T")
-                ################################################################################################
-                ########Build Raw CDC Query and DF Dynamically##################################################
-                ################################################################################################
-                rawCdcQ = """
-                         SELECT *
-                           FROM (
-                         	    	SELECT ROW_NUMBER() OVER(PARTITION BY {str1}  ORDER BY transaction_id DESC ) seq_by_pk, tab.*
-                         		      FROM inputStgDf_T tab
-                         		) seq_by_pk_q
-                         WHERE seq_by_pk = 1
-                         """.format(str1=primaryKey)
-
-                print('{} : In Build Raw CDC Query and DF.'.format(ctrlRec['table_name']))
-
-                inputStgNoDupsDf = spark.sql(rawCdcQ)
-                print('{} : inputStgNoDupsDf Partitions count:{}, after window query.'.format(ctrlRec['table_name'],
-                                                                                              inputStgNoDupsDf.rdd.getNumPartitions()))
-
-                # inputDf = inputStgNoDupsDf.withColumn('update_ts_dms', to_timestamp(col('update_ts_dms')))
-                inputDf = inputStgNoDupsDf
-                print(
-                    '{} : inputDf Partitions count:{}, after window query'.format(
-                        ctrlRec['table_name'], inputDf.rdd.getNumPartitions()))
-
-            else:  # means initial or full load
-                # inputDf = inputStgDf.withColumn('update_ts_dms', to_timestamp(col('update_ts_dms')))
-                inputDf = inputStgDf
-                print(
-                    '{} : inputDf Partitions count:{}, in full load'.format(
-                        ctrlRec['table_name'], inputDf.rdd.getNumPartitions()))
-
-                print('{} : In build FULL Load DF.'.format(ctrlRec['table_name']))
-
-            ########################################################################################################
-            #####Set Target Path###############################################################################
-            ########################################################################################################
-            targetPath = 's3://' + curatedS3BucketName + '/' + dbName + '/' + schemaName + '/' + tableName
-            # print('Got records from raw bucket:{}'.format(inputDf.count()))
-
-            ########################################################################################################
-            #####Hudi Config Settings###############################################################################
-            ########################################################################################################
-            morConfig = {'hoodie.datasource.write.storage.type': 'MERGE_ON_READ',
-                         'hoodie.compact.inline': 'false',
-                         'hoodie.compact.inline.max.delta.commits': 20,
-                         'hoodie.parquet.small.file.limit': 0}
-
-            commonConfig = {'className': 'org.apache.hudi',
-                            'hoodie.datasource.hive_sync.use_jdbc': 'false',
-                            'hoodie.datasource.write.precombine.field': 'measurement_value',
-                            'hoodie.datasource.write.recordkey.field': primaryKey,
-                            'hoodie.table.name': tableName,
-                            'hoodie.consistency.check.enabled': 'true',
-                            'hoodie.datasource.hive_sync.database': glueDbName,
-                            'hoodie.datasource.hive_sync.table': tableName,
-                            'hoodie.datasource.hive_sync.enable': 'true',
-                            'hoodie.datasource.hive_sync.support_timestamp': 'true',
-                            'hoodie.datasource.hive_sync.mode': 'hms'
-                            }
-
-            multiPkConfig = {
-                'hoodie.datasource.write.keygenerator.class': 'org.apache.hudi.keygen.ComplexKeyGenerator'}  # added to support composite PK...#deviation
-
-            #   'hoodie.datasource.hive_sync.partition_extractor_class': 'org.apache.hudi.hive.MultiPartKeysValueExtractor',
-            #   'hoodie.datasource.hive_sync.partition_extractor_class': 'org.apache.hudi.hive.HiveStylePartitionValueExtractor',
-
-            #   'hoodie.datasource.hive_sync.partition_fields': partitionKey}
-
-            partitionDataConfig = {'hoodie.datasource.write.partitionpath.field': partitionKey,
-                                   'hoodie.datasource.hive_sync.partition_fields': partitionKey,
-                                   'hoodie.datasource.write.hive_style_partitioning': 'true',
-                                   'hoodie.datasource.hive_sync.partition_extractor_class': 'org.apache.hudi.hive.HiveStylePartitionValueExtractor',
-                                   'hoodie.datasource.write.keygenerator.consistent.logical.timestamp.enabled': 'true'
-                                   }
-
-            unpartitionDataConfig = {
-                'hoodie.datasource.hive_sync.partition_extractor_class': 'org.apache.hudi.hive.NonPartitionedExtractor',
-                'hoodie.datasource.write.keygenerator.class': 'org.apache.hudi.keygen.NonpartitionedKeyGenerator'}
-
-            incrementalConfig = {'hoodie.upsert.shuffle.parallelism': ctrlRec['hudi_upsert_shuffle_parallelism'],  # 2,
-                                 'hoodie.datasource.write.operation': 'upsert',
-                                 'hoodie.cleaner.policy': 'KEEP_LATEST_COMMITS',
-                                 'hoodie.cleaner.commits.retained': 10}
-
-            insertConfig = {'hoodie.upsert.shuffle.parallelism': ctrlRec['hudi_upsert_shuffle_parallelism'],  # 2,
-                            'hoodie.datasource.write.operation': 'insert'
-                            }
-
-            initLoadConfig = {'hoodie.bulkinsert.shuffle.parallelism': ctrlRec['hudi_bulkinsert_shuffle_parallelism'],
-                              # 1500,
-                              'hoodie.datasource.write.operation': 'bulk_insert',
-                              'hoodie.parquet.writelegacyformat.enabled': 'true',
-                              'hoodie.parquet.outputtimestamptype': 'TIMESTAMP_MICROS'
-                              }
-
-            deleteDataConfig = {
-                'hoodie.datasource.write.payload.class': 'org.apache.hudi.common.model.EmptyHoodieRecordPayload'}
-
-            print('{} : Configured Hudi Settings.'.format(ctrlRec['table_name']))
-            ########################################################################################################
-            #####Load Data into Curated Bucket######################################################################
-            ########################################################################################################
-            if (hudiStorageType == 'mor'):
-                commonConfig = {**commonConfig, **morConfig}
-                logger.info('mor config appended to commonConfig.')
-                print('{} : mor config appended to commonConfig.'.format(ctrlRec['table_name']))
-
-            combinedConf = {}
-            if (isPrimaryKey):
-                logger.info('Going the Hudi way.')
-                if (isTableExists):
-                    logger.info('Incremental load.')
-                    # glueCdcSplitUpsert = 'yes'
-                    ########################################################################################################
-                    #####Process upsert-Split-Inserts#######################################################################
-                    #####Set ctrlRec['cdc_split_upsert'] to Yes only for table that is huge and no deletes performed########
-                    ########################################################################################################
-                    # means split inserts and updates; perform bulk insert for I records and upsert for U records.
-                    if ctrlRec['cdc_split_upsert'] == 'yes':
-                        outputDf_inserted = inputDf.filter("Op = 'I'").drop(*dropColumnList)
-                        print('{} : outputDf_inserted Partitions count: {}.'.format(ctrlRec['table_name'],
-                                                                                    outputDf_inserted.rdd.getNumPartitions()))
-
-                        if not outputDf_inserted.rdd.isEmpty():  # outputDf.count() > 0:
-                            logger.info('upsert-Split-inserts data.')
-                            if (isPartitionKey):
-                                print('{} : in upsert-split-inserts, yes_tab, yes_pk, yes_part.'.format(
-                                    ctrlRec['table_name']))
-                                logger.info('Writing to partitioned Hudi table.')
-                                # outputDf_inserted = outputDf_inserted.withColumn(partitionKey,
-                                #                                                  concat(lit(partitionKey + '='), col(
-                                #                                                      partitionKey)))  # Action: Need to figure out for Multi-level partition.
-                                if (isCompositePk):
-                                    combinedConf = {**commonConfig, **partitionDataConfig, **initLoadConfig,
-                                                    **multiPkConfig}  ##$$$bulk insert using initLoadConfig
-                                else:
-                                    combinedConf = {**commonConfig, **partitionDataConfig,
-                                                    **initLoadConfig}  ##$$$bulk insert using initLoadConfig
-                                outputDf_inserted.write.format('org.apache.hudi') \
-                                    .options(**combinedConf) \
-                                    .mode('Append') \
-                                    .save(targetPath)
-                            else:
-                                print('{} : in upsert-split-inserts, yes_tab, yes_pk, no_part.'.format(
-                                    ctrlRec['table_name']))
-                                logger.info('Writing to unpartitioned Hudi table.')
-                                if (isCompositePk):
-                                    combinedConf = {**commonConfig, **unpartitionDataConfig, **initLoadConfig,
-                                                    **multiPkConfig}  ##$$$bulk insert using initLoadConfig
-                                else:
-                                    combinedConf = {**commonConfig, **unpartitionDataConfig,
-                                                    **initLoadConfig}  ##$$$bulk insert using initLoadConfig
-                                outputDf_inserted.write.format('org.apache.hudi') \
-                                    .options(**combinedConf) \
-                                    .mode('Append') \
-                                    .save(targetPath)
-
-                            print(
-                                '{} : in upsert-split-inserts, yes_tab, yes_pk, yes_part. Completed bulk insert, outputDf_inserted df to S3 bucket'.format(
-                                    ctrlRec['table_name']))
-
-                    ########################################################################################################
-                    #####Process upsert-noSplit or upsert-Split-updates####################################################
-                    ########################################################################################################
-                    # means split inserts and updates; perform bulk insert for I records and upsert for U records
-                    if ctrlRec['cdc_split_upsert'] == 'yes':
-                        outputDf = inputDf.filter("Op = 'U'").drop(*dropColumnList)
-                        print('{} : outputDf Partitions count: {}.'.format(ctrlRec['table_name'],
-                                                                           outputDf.rdd.getNumPartitions()))
-                        message = 'split-updates'
-                    else:
-                        # means pick I and U (inserted and updated) records
-                        outputDf = inputDf.filter("Op != 'D'").drop(*dropColumnList)
-                        print('{} : outputDf Partitions count: {}.'.format(ctrlRec['table_name'],
-                                                                           outputDf.rdd.getNumPartitions()))
-                        message = 'noSplit'
-
-                    if not outputDf.rdd.isEmpty():  # outputDf.count() > 0:
-                        logger.info('Upserting data.')
-                        if (isPartitionKey):
-                            print(
-                                '{} : in upsert-{}, yes_tab, yes_pk, yes_part.'.format(ctrlRec['table_name'], message))
-                            logger.info('Writing to partitioned Hudi table.')
-                            # outputDf = outputDf.withColumn(partitionKey, concat(lit(partitionKey + '='), col(
-                            #     partitionKey)))  # Action: Need to figure out for Multi-level partition.
-                            if (isCompositePk):
-                                combinedConf = {**commonConfig, **partitionDataConfig, **incrementalConfig,
-                                                **multiPkConfig}
-                            else:
-                                combinedConf = {**commonConfig, **partitionDataConfig, **incrementalConfig}
-                            outputDf.write.format('org.apache.hudi') \
-                                .options(**combinedConf) \
-                                .mode('Append') \
-                                .save(targetPath)
-                        else:
-                            print('{} : in upsert-{}, yes_tab, yes_pk, no_part.'.format(ctrlRec['table_name'], message))
-                            logger.info('Writing to unpartitioned Hudi table.')
-                            if (isCompositePk):
-                                combinedConf = {**commonConfig, **unpartitionDataConfig, **incrementalConfig,
-                                                **multiPkConfig}
-                            else:
-                                combinedConf = {**commonConfig, **unpartitionDataConfig, **incrementalConfig}
-                            outputDf.write.format('org.apache.hudi') \
-                                .options(**combinedConf) \
-                                .mode('Append') \
-                                .save(targetPath)
-
-                        print(
-                            '{} : in upsert-{}, yes_tab, yes_pk, no_part. Completed upsert, outputDf to S3 bucket'.format(
-                                ctrlRec['table_name'], message))
-
-                    ########################################################################################################
-                    #####Processes Deletes##D records#######################################################################
-                    ########################################################################################################
-                    outputDf_deleted = inputDf.filter("Op = 'D'").drop(*dropColumnList)
-                    if not outputDf_deleted.rdd.isEmpty():  # outputDf_deleted.count() > 0:
-                        logger.info('Some data got deleted.')
-                        if (isPartitionKey):
-                            print('{} : in delete: yestab, yespk, yespart.'.format(ctrlRec['table_name']))
-                            logger.info('Deleting from partitioned Hudi table.')
-                            # outputDf_deleted = outputDf_deleted.withColumn(partitionKey, concat(lit(partitionKey + '='),
-                            #                                                                     col(partitionKey)))
-                            if (isCompositePk):
-                                combinedConf = {**commonConfig, **partitionDataConfig, **incrementalConfig,
-                                                **deleteDataConfig, **multiPkConfig}
-                            else:
-                                combinedConf = {**commonConfig, **partitionDataConfig, **incrementalConfig,
-                                                **deleteDataConfig}
-                            outputDf_deleted.write.format('org.apache.hudi') \
-                                .options(**combinedConf) \
-                                .mode('Append') \
-                                .save(targetPath)
-                        else:
-                            print('{} : in delete: yestab, yespk, nopart.'.format(ctrlRec['table_name']))
-                            logger.info('Deleting from unpartitioned Hudi table.')
-                            combinedConf = {**commonConfig, **unpartitionDataConfig, **incrementalConfig,
-                                            **deleteDataConfig}
-                            outputDf_deleted.write.format('org.apache.hudi') \
-                                .options(**combinedConf) \
-                                .mode('Append') \
-                                .save(targetPath)
-
-                else:
-                    outputDf = inputDf.drop(*dropColumnList)
-                    if not outputDf.rdd.isEmpty():  # if outputDf.count() > 0:
-                        logger.info('Inital load.')
-                        if (isPartitionKey):
-                            print('{} : in inital_load, no_tab, yes_pk, yes_part.'.format(ctrlRec['table_name']))
-                            logger.info('Writing to partitioned Hudi table.')
-                            # outputDf = outputDf.withColumn(partitionKey,
-                            #                               concat(lit(partitionKey + '='), col(partitionKey)))
-                            if (isCompositePk):
-                                combinedConf = {**commonConfig, **partitionDataConfig, **initLoadConfig,
-                                                **multiPkConfig}
-                            else:
-                                combinedConf = {**commonConfig, **partitionDataConfig, **initLoadConfig}
-                            outputDf.write.format('org.apache.hudi') \
-                                .options(**combinedConf) \
-                                .mode('Append' if ctrlRec['dms_full_load_partitioned'] == 'yes' else 'Overwrite') \
-                                .save(targetPath)
-                        else:
-                            print('{} : in inital_load, no_tab, yes_pk, no_part.'.format(ctrlRec['table_name']))
-                            logger.info('Writing to unpartitioned Hudi table.')
-                            if (isCompositePk):
-                                combinedConf = {**commonConfig, **unpartitionDataConfig, **initLoadConfig,
-                                                **multiPkConfig}
-                            else:
-                                combinedConf = {**commonConfig, **unpartitionDataConfig, **initLoadConfig}
-                            outputDf.write.format('org.apache.hudi') \
-                                .options(**combinedConf) \
-                                .mode('Append' if ctrlRec['dms_full_load_partitioned'] == 'yes' else 'Overwrite') \
-                                .save(targetPath)
-
+                #Handling updates
+                outputDf = inputDf.filter("Op = 'U'").drop(*dropColumnList)
+                print('{} : outputDf Partitions count: {}.'.format(jobControlRec['table_name'],outputDf.rdd.getNumPartitions()))
             else:
-                if (isPartitionKey):
-                    logger.info('Writing to partitioned glueparquet table.')
-                    print('{} : in bad, no_ok, yes_part.'.format(ctrlRec['table_name']))
-                    sink = glueContext.getSink(connection_type='s3', path=targetPath, enableUpdateCatalog=True,
-                                               updateBehavior='UPDATE_IN_DATABASE', partitionKeys=[partitionKey])
-                else:
-                    print('{} : in bad, no_ok, no_part.'.format(ctrlRec['table_name']))
-                    logger.info('Writing to unpartitioned glueparquet table.')
-                    sink = glueContext.getSink(connection_type='s3', path=targetPath, enableUpdateCatalog=True,
-                                               updateBehavior='UPDATE_IN_DATABASE')
-                sink.setFormat('glueparquet')
-                sink.setCatalogInfo(catalogDatabase=dbName, catalogTableName=tableName)
-                outputDyf = DynamicFrame.fromDF(inputDf.drop(*dropColumnList), glueContext, 'outputDyf')
-                sink.writeFrame(outputDyf)
+                #No optimization bulk insert optmization needed. Process everything except deletes
+                #print("dont split cdc")
+                outputDf = inputDf.filter("Op != 'D'").drop(*dropColumnList)
+                print('{} : outputDf Partitions count: {}.'.format(jobControlRec['table_name'],outputDf.rdd.getNumPartitions()))
 
-        inputStgDf.unpersist()  # unpersist dataframe from memory.
-        print('{} : process_raw_data executed and returning control to main.'.format(ctrlRec['table_name']))
-        return ('{} : process_raw_data Function executed sucessfully.'.format(ctrlRec['table_name']))
-    except Exception as ex:
-        print(
-            '{} : gluecompactionjoberror: process_raw_data method failed with exception:{}'.format(
-                ctrlRec['table_name'],
-                str(ex)))
-        # return ('{} : process_raw_data Function execution FAILED.'.format(ctrlRec['table_name']))
-        raise ex
+            #Process updates, or upserts.
+            if not outputDf.rdd.isEmpty():  # outputDf.count() > 0:
+                hudiConfigs = getHudiConfigForIncrementalLoad(globalHudiConfigs,jobControlRec)
+                #print("hudiConfigs: getHudiConfigForIncrementalLoad", hudiConfigs)
+                outputDf.write.format('org.apache.hudi').options(**hudiConfigs).mode('Append').save(targetPath)
 
+            #Process deletes
+            outputDf_deleted = inputDf.filter("Op = 'D'").drop(*dropColumnList)
+            if not outputDf_deleted.rdd.isEmpty():  # outputDf_deleted.count() > 0:
+                print("Processing deletes")
+                hudiConfigs = getHudiConfigForDeletes(globalHudiConfigs,jobControlRec)
+                outputDf_deleted.write.format('org.apache.hudi').options(**hudiConfigs).mode('Append').save(targetPath)
+
+
+    #end if not inputStgDf.rdd.isEmpty():
+    else:
+        print('{} : No records found in Raw bucket to load into Curated Bucket.'.format(jobControlRec['table_name']))
+
+    inputStgDf.unpersist()  # unpersist dataframe from memory.
+    print('{} : process_raw_data executed and returning control to main.'.format(jobControlRec['table_name']))
+    return ('{} : process_raw_data Function executed sucessfully.'.format(jobControlRec['table_name']))
+
+
+def main():
+    jobControlProps = getJobControlProperties()
+
+    if jobControlProps is not None and len(jobControlProps) > 0:
+        for jobControlRec in jobControlProps:
+            print('Processing {} schema in {} table from job control properties'.format(jobControlRec['schema_name'], jobControlRec['table_name']))
+            jobControlRec['glueDbName'] = ('dl_' + jobControlRec['db_name'] + '_' + jobControlRec['schema_name']).lower()
+            if not glueDBExists(jobControlRec['glueDbName']):
+                createGlueDB(jobControlRec['glueDbName'])
+            process_raw_data(jobControlRec)
+    else:
+        print("No job control properties found for {} in {} DynamoDB table".format(jobName,controlTableName))
 
 if __name__ == "__main__":
     main()

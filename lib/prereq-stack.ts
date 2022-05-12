@@ -28,21 +28,21 @@ export class PreReqStack extends Stack {
     glueRoleGrantReadWrite.addManagedPolicy(ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSGlueServiceRole'))
     this.glueRoleGrantReadWrite = glueRoleGrantReadWrite;    
     
-    const rawBucket = new Bucket(this, 'np-raw-bucket123', {
+    const rawBucket = new Bucket(this, 'hudi-framework-blog-raw-bucket', {
       accessControl: BucketAccessControl.BUCKET_OWNER_FULL_CONTROL,
       encryption: BucketEncryption.S3_MANAGED,
       blockPublicAccess: BlockPublicAccess.BLOCK_ALL
     });
     this.rawBucket = rawBucket;
  
-    const processedBucket = new Bucket(this, 'np-processed-bucket123', {
+    const processedBucket = new Bucket(this, 'hudi-framework-blog-processed-bucket', {
       accessControl: BucketAccessControl.BUCKET_OWNER_FULL_CONTROL,
       encryption: BucketEncryption.S3_MANAGED,
       blockPublicAccess: BlockPublicAccess.BLOCK_ALL
     });
     this.processedBucket = processedBucket;
  
-    const libraryBucket = new Bucket(this, 'np-libs-bucket123', {
+    const libraryBucket = new Bucket(this, 'hudi-framework-blog-lib-bucket', {
       accessControl: BucketAccessControl.BUCKET_OWNER_FULL_CONTROL,
       encryption: BucketEncryption.S3_MANAGED,
       blockPublicAccess: BlockPublicAccess.BLOCK_ALL
@@ -84,7 +84,7 @@ export class PreReqStack extends Stack {
     })
  
  
-    const controlTable = new Table(this, 'gluetable2', {
+    const controlTable = new Table(this, 'jobControlTable', {
       partitionKey: {name: 'glue_job_name', type: AttributeType.STRING},
       sortKey: {name: 'table_name', type: AttributeType.STRING},
       tableName : "GlueControlTable",

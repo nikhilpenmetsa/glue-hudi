@@ -73,7 +73,7 @@ export class CdkGlueTestStack extends Stack {
         glueVersion: GlueVersion.V2_0,
         pythonVersion: PythonVersion.THREE,
         //script: Code.fromAsset(path.join(__dirname, "assets/glue_scripts/compact_v2.py")),
-        script: Code.fromBucket(libraryBucket, "scripts/compact_v2.py"),
+        script: Code.fromBucket(libraryBucket, "scripts/processData2.py"),
         extraJars: [
           Code.fromBucket(libraryBucket, "jars/hudi-spark-bundle_2.11-0.10.1.jar"),
           Code.fromBucket(libraryBucket, "jars/spark-avro_2.11-2.4.4.jar"),
@@ -102,57 +102,5 @@ export class CdkGlueTestStack extends Stack {
       
     })
     
-    // const f_pyAssetETL = new Asset(this, "hello-etl", {
-    //   path: path.join(__dirname, "assets/hello-etl.py"),
-    // })
- 
-    
-    // const jobProps = {
-    //   command: {
-    //     name: 'glueetl',
-    //     pythonVersion: '3',
-    //     scriptLocation: f_pyAssetETL.s3ObjectUrl,
-    //   },
-  
-    //   defaultArguments: { },
-    //   description: 'etl-job-description',
-    //   executionProperty: {
-    //     maxConcurrentRuns: 1,
-    //   },
-    //   glueVersion: '2.0',
-    //   maxRetries: 0,
-    //   name: 'etl-job',
-    //   numberOfWorkers: 2,
-    //   role: role.roleArn,
-    //   timeout: 180, // minutes
-    //   workerType: 'Standard',
-      
-    //   executable: JobExecutable.pythonEtl({
-    //     glueVersion: GlueVersion.V3_0,
-    //     pythonVersion: PythonVersion.THREE,
-    //     script: Code.fromAsset(path.join(__dirname, "assets/hello-etl.py"))
-    //   }),
-    // };
-      
-
- 
-     //create glue database
-     /*
-    const glue_db = new CfnDatabase(this, 'my-db', {
-      catalogId: 'someCatalogId',
-      databaseInput :{
-        name: 'db-input-name'
-      },
-    })
-    */
-    
-    //todo - had to manually grant CDK IAM role as "database creators" in lakeformation console.
-    //https://github.com/hashicorp/terraform-provider-aws/issues/10251
-    // const glue_db = new Database(this, "glue-test-db", {
-    //   databaseName: "glue-test-db",
-    // })
-
   }
 }
-
-

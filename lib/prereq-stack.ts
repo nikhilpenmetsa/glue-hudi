@@ -20,47 +20,51 @@ export class PreReqStack extends Stack {
     super(scope, id, props);
 
 
-
-    const glueRoleGrantReadWrite = new Role(this, 'access-glue-avista', {
-      assumedBy: new ServicePrincipal('glue.amazonaws.com'),
-      roleName: "GlueHudiRole"
+    //Create role
+    const glueRoleGrantReadWrite = new Role(this, 'access-glue-role', {
+      assumedBy: new ServicePrincipal('glue.amazonaws.com')
     });
     glueRoleGrantReadWrite.addManagedPolicy(ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSGlueServiceRole'))
     this.glueRoleGrantReadWrite = glueRoleGrantReadWrite;    
     
-    const rawBucket = new Bucket(this, 'np-raw-bucket123', {
+    //Create bucket to hold raw data. The data in this bucket will be the input dataset for the glue job.
+    const rawBucket = new Bucket(this, 'hudi-framework-blog-raw-bucket', {
       accessControl: BucketAccessControl.BUCKET_OWNER_FULL_CONTROL,
       encryption: BucketEncryption.S3_MANAGED,
       blockPublicAccess: BlockPublicAccess.BLOCK_ALL
     });
     this.rawBucket = rawBucket;
  
-    const processedBucket = new Bucket(this, 'np-processed-bucket123', {
+    //Create bucket to hold processed data. This is the output from the glue job.
+    const processedBucket = new Bucket(this, 'hudi-framework-blog-processed-bucket', {
       accessControl: BucketAccessControl.BUCKET_OWNER_FULL_CONTROL,
       encryption: BucketEncryption.S3_MANAGED,
       blockPublicAccess: BlockPublicAccess.BLOCK_ALL
     });
     this.processedBucket = processedBucket;
  
-    const libraryBucket = new Bucket(this, 'np-libs-bucket123', {
+    //Create bucket to hold libraries, scripts used by the glue job.
+    const libraryBucket = new Bucket(this, 'hudi-framework-blog-lib-bucket', {
       accessControl: BucketAccessControl.BUCKET_OWNER_FULL_CONTROL,
       encryption: BucketEncryption.S3_MANAGED,
       blockPublicAccess: BlockPublicAccess.BLOCK_ALL
     });
     this.libraryBucket = libraryBucket;
 
-    //populate library S3 bucket with jars, scripts and control file.
+    //populate library S3 bucket with jars,.
     //https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_s3_deployment-readme.html
-    new BucketDeployment(this, 'deployJars',{
-      sources: [
-        // Source.asset("lib/assets/jars/hudi-spark-bundle_2.11-0.10.1.jar"), 
-        // Source.asset("lib/assets/jars/spark-avro_2.11-2.4.4.jar"), 
-        // Source.asset("lib/assets/jars/log4j-web-2.16.0.jar")
-        ],
-      destinationBucket: libraryBucket,
-      destinationKeyPrefix: 'jars'
-    })
+    //Not deploying jar files as there are too many files, and the CDK lambda function that uploads these files will timeout. https://github.com/aws/aws-cdk/issues/4058
+    // new BucketDeployment(this, 'deployJars',{
+    //   sources: [
+    //     // Source.asset("lib/assets/jars/hudi-spark-bundle_2.11-0.10.1.jar"), 
+    //     // Source.asset("lib/assets/jars/spark-avro_2.11-2.4.4.jar"), 
+    //     // Source.asset("lib/assets/jars/log4j-web-2.16.0.jar")
+    //     ],
+    //   destinationBucket: libraryBucket,
+    //   destinationKeyPrefix: 'jars'
+    // })
     
+    //populate library S3 bucket with glue job script,.
     new BucketDeployment(this, 'script',{
       sources: [
         Source.asset("lib/assets/scripts")],
@@ -68,14 +72,15 @@ export class PreReqStack extends Stack {
       destinationKeyPrefix: 'scripts'
     })
     
-    new BucketDeployment(this, 'control_file',{
-      sources: [
-        Source.asset("lib/assets/config/")],
-      destinationBucket: libraryBucket,
-      destinationKeyPrefix: 'config'
-    })
+    // //create directory for Athena query results. We use Athena to query processed data.
+    // //https://docs.aws.amazon.com/athena/latest/ug/querying.html#:~:text=runs%20the%20query.-,Specifying%20a%20query%20result%20location%20using%20the%20Athena%20console,-Before%20you%20can
+    // new BucketDeployment(this, 'athena_query_output',{
+    //   sources: [],
+    //   destinationBucket: libraryBucket,
+    //   destinationKeyPrefix: 'athena_query_output/results'
+    // })
  
-  //stage raw data
+  //stage raw data for initial load
     new BucketDeployment(this, 'staging_data',{
       sources: [
         Source.asset("lib/assets/data")],
@@ -84,17 +89,13 @@ export class PreReqStack extends Stack {
     })
  
  
-    const controlTable = new Table(this, 'gluetable2', {
+    //create DynamoDB table to hold job control details.
+    const controlTable = new Table(this, 'jobControlTable', {
       partitionKey: {name: 'glue_job_name', type: AttributeType.STRING},
       sortKey: {name: 'table_name', type: AttributeType.STRING},
-      tableName : "GlueControlTable",
       billingMode: BillingMode.PAY_PER_REQUEST, 
     })
     this.controlTable = controlTable;
-
-    // rawBucket.grantReadWrite(glueHudiRole);
-    // processedBucket.grantReadWrite(glueHudiRole);
-    // controlTable.grantReadData(glueHudiRole);
 
   }
 }

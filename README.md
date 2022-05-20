@@ -8,7 +8,6 @@
  * `./deployGlueStack.sh`   script to deploy glue job
  * `./runJobForInitialLoad.sh`  script to run job for initial load
  * `./runJobForIncrementalLoad.sh`  script to copy incremental data file to raw bucket and to run job for processing incremental data
- * 
  
 ## Cleanup
  * `./resetForInitialLoad.sh`   script to delete artifacts in Glue catalog, empty processed bucket.

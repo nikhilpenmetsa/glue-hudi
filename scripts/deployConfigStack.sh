@@ -1,5 +1,5 @@
 #!/bin/bash
-cd ~/environment/glue-hudi/scripts
+cd ~/environment/glue-hudi
 
 echo "install npm packages"
 npm install

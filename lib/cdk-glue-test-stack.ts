@@ -73,7 +73,7 @@ export class CdkGlueTestStack extends Stack {
         glueVersion: GlueVersion.V2_0,
         pythonVersion: PythonVersion.THREE,
         //script: Code.fromAsset(path.join(__dirname, "assets/glue_scripts/compact_v2.py")),
-        script: Code.fromBucket(libraryBucket, "scripts/processData2.py"),
+        script: Code.fromBucket(libraryBucket, "scripts/processData.py"),
         extraJars: [
           Code.fromBucket(libraryBucket, "jars/hudi-spark-bundle_2.11-0.10.1.jar"),
           Code.fromBucket(libraryBucket, "jars/spark-avro_2.11-2.4.4.jar"),

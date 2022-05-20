@@ -21,9 +21,8 @@ export class PreReqStack extends Stack {
 
 
 
-    const glueRoleGrantReadWrite = new Role(this, 'access-glue-avista', {
-      assumedBy: new ServicePrincipal('glue.amazonaws.com'),
-      roleName: "GlueHudiRole"
+    const glueRoleGrantReadWrite = new Role(this, 'access-glue-role', {
+      assumedBy: new ServicePrincipal('glue.amazonaws.com')
     });
     glueRoleGrantReadWrite.addManagedPolicy(ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSGlueServiceRole'))
     this.glueRoleGrantReadWrite = glueRoleGrantReadWrite;    
@@ -87,7 +86,6 @@ export class PreReqStack extends Stack {
     const controlTable = new Table(this, 'jobControlTable', {
       partitionKey: {name: 'glue_job_name', type: AttributeType.STRING},
       sortKey: {name: 'table_name', type: AttributeType.STRING},
-      tableName : "GlueControlTable",
       billingMode: BillingMode.PAY_PER_REQUEST, 
     })
     this.controlTable = controlTable;

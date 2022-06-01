@@ -1,4 +1,5 @@
-# CDK TypeScript project for deploying Glue ETL jobs.
+# Serverless CDC processing framework using AWS Glue and Apache Hudi.
+Project demonstrating a CDC processing framework. Framework uses Apache Hudi with AWS Glue to apply record-level inserts, updates, and deletes from their source systems into their S3 datalake without always-on RDBMS targets.
 
 ## Instructions
  * `git clone git@github.com:nikhilpenmetsa/glue-hudi.git`  clone repository

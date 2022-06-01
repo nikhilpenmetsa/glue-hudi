@@ -9,9 +9,9 @@ Project demonstrating a CDC processing framework. Framework uses Apache Hudi wit
  * `./deployGlueStack.sh`   script to deploy glue job
  * `./runJobForInitialLoad.sh`  script to run job for initial load
  * `./runJobForIncrementalLoad.sh`  script to copy incremental data file to raw bucket and to run job for processing incremental data
+ * `./resetForInitialLoad.sh` script to re-run the job for initial load. Script delete artifacts in Glue catalog, empty processed bucket.
  
 ## Cleanup
- * `./resetForInitialLoad.sh`   script to delete artifacts in Glue catalog, empty processed bucket.
  * `./cleanup.sh`   script to cleanup all artifacts.
 
 

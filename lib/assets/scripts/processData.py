@@ -78,7 +78,7 @@ def createGlueDB(glueDbName):
             'Description': 'Database ' + glueDbName + ' created by Glue Compaction Job.'
             }
         )
-        print('{} : Created Glue Db.'.format(glueDbName))
+        print("Glue database {} created".format(glueDbName))
     except ClientError as e:
         print('Error creating Glue Database:', e.response['Error']['Code'])
 
@@ -92,7 +92,7 @@ def tableExists(glueDbName,tableNameCatalogCheck):
         print('{} : Table exists in Glue Data Catalog.'.format(tableNameCatalogCheck))
     except ClientError as e:
         if e.response['Error']['Code'] == 'EntityNotFoundException':
-            print('{} : Table does not exist. It  will be created in during write operations.'.format(tableNameCatalogCheck))
+            print('Table {} does not exist. It  will be created in during write operations.'.format(tableNameCatalogCheck))
 
     return tableExists
 
@@ -131,7 +131,7 @@ def enrichJobControlProperties(jobControlRec):
     if not jobControlRec['hudi_storage_type'] is None and (jobControlRec['hudi_storage_type'] == 'mor'):
         jobControlRec['tableNameCatalogCheck'] = jobControlRec['table_name'] + '_ro'  # Assumption is that if _ro table exists then _rt table will also exist. Hence we are checking only for _ro.
 
-    #set table exists property
+    #set isInitalLoad property
     jobControlRec['isInitalLoad'] = True #implies table does not exist
     if tableExists(jobControlRec['glueDbName'],jobControlRec['tableNameCatalogCheck']):
         print("Found an existing table in the Glue catalog. Processing will be configured for incremental load")
@@ -293,17 +293,17 @@ def process_raw_data(jobControlRec):
     inputStgDf.persist()  # persist this dataframe to avoid reading from raw S3 multiple times.
 
     if not inputStgDf.rdd.isEmpty():
-        print('{} : Records found in Raw bucket to load into Curated Bucket. Continue processing'.format(jobControlRec['table_name']))
+        print('Records found in Raw bucket to load into Curated Bucket. Continue processing')
         for colName in inputStgDf.columns:
             inputStgDf = inputStgDf.withColumnRenamed(colName, colName.lower())
-        print('{} : inputStgDf Partitions count: {}, after reading from S3 bucket.'.format(jobControlRec['table_name'],inputStgDf.rdd.getNumPartitions()))
+        #print('{} : inputStgDf Partitions count: {}, after reading from S3 bucket.'.format(jobControlRec['table_name'],inputStgDf.rdd.getNumPartitions()))
 
         if (jobControlRec['isInitalLoad']):
-            print('{} : Processing Full load.'.format(jobControlRec['table_name']))
+            print('Table {} : Processing Full load.'.format(jobControlRec['table_name']))
             inputDf = inputStgDf
-            print('{} : inputDf Partitions count:{}, in full load'.format(jobControlRec['table_name'], inputDf.rdd.getNumPartitions()))
+            #print('{} : inputDf Partitions count:{}, in full load'.format(jobControlRec['table_name'], inputDf.rdd.getNumPartitions()))
         else:
-            print('{} : Processing incremental load - In Build Raw CDC Query and DF.'.format(jobControlRec['table_name']))
+            print('Table {} : Processing incremental load - In Build Raw CDC Query and DF.'.format(jobControlRec['table_name']))
             inputStgDf.createOrReplaceTempView("inputStgDf_T")
             #Build Raw CDC Query and DF Dynamically
             rawCdcQ = """
@@ -315,73 +315,70 @@ def process_raw_data(jobControlRec):
                 WHERE seq_by_pk = 1
                 """.format(str1=jobControlRec['primary_key'].replace(';', ','))
             inputStgNoDupsDf = spark.sql(rawCdcQ)
-            print('{} : inputStgNoDupsDf Partitions count:{}, after window query.'.format(jobControlRec['table_name'],inputStgNoDupsDf.rdd.getNumPartitions()))
+            #print('{} : inputStgNoDupsDf Partitions count:{}, after window query.'.format(jobControlRec['table_name'],inputStgNoDupsDf.rdd.getNumPartitions()))
 
             inputDf = inputStgNoDupsDf
-            print('{} : inputDf Partitions count:{}, after window query'.format(jobControlRec['table_name'], inputDf.rdd.getNumPartitions()))
+            #print('{} : inputDf Partitions count:{}, after window query'.format(jobControlRec['table_name'], inputDf.rdd.getNumPartitions()))
 
         #get a map of all possible hudi configuration options.
         globalHudiConfigs = defineGlobalHudiConfigs(jobControlRec)
 
         dropColumnList = ['db', 'op', 'schema_name', 'transaction_id', 'seq_by_pk']
+        
         #Process initial/full load
         if(jobControlRec['isInitalLoad']):
-            print('{} : Processing Initial/Full load.'.format(jobControlRec['table_name']))
+            #print('Table {} : Processing Initial/Full load.'.format(jobControlRec['table_name']))
             outputDf = inputDf.drop(*dropColumnList)
             if not outputDf.rdd.isEmpty():  # if outputDf.count() > 0:
                 hudiConfigs = getHudiConfigForInitialLoad(globalHudiConfigs,jobControlRec)
-                #todo check with Satish
-                #outputDf.write.format('org.apache.hudi').options(hudiConfigs).mode('Append' if jobControlRec['dms_full_load_partitioned'] == 'yes' else 'Overwrite').save(targetPath)
-                print("hudiConfigs: getHudiConfigForInitialLoad ", hudiConfigs)
                 outputDf.write.format('org.apache.hudi').options(**hudiConfigs).mode('Append').save(targetPath)
 
         #Process incremental load
         else:
-            print('{} : Processing incremental load.'.format(jobControlRec['table_name']))
+            #print('Table {} : Processing incremental load.'.format(jobControlRec['table_name']))
             #Optimize using bulk inserts and updates
             if jobControlRec['cdc_split_upsert'] == 'yes':
-                print('{} : Splitting upserts to inserts for bulk insert processing.'.format(jobControlRec['table_name']))
+                print('Table {} : Optimizing incremental load using bulk inserts and updates'.format(jobControlRec['table_name']))
                 outputDf_inserted = inputDf.filter("Op = 'I'").drop(*dropColumnList)
-                print('{} : Insert Partitions count: {}.'.format(jobControlRec['table_name'], outputDf_inserted.rdd.getNumPartitions()))
+                print('Table {} : Insert Partitions count: {}.'.format(jobControlRec['table_name'], outputDf_inserted.rdd.getNumPartitions()))
 
                 #Handling inserts - Split inserts will be use same hudi config as initial load
                 if not outputDf_inserted.rdd.isEmpty():  # outputDf.count() > 0:
-                    print('{} : Processing bulk inserts.'.format(jobControlRec['table_name']))
+                    print('Table {} : Processing bulk inserts.'.format(jobControlRec['table_name']))
                     hudiConfigs = getHudiConfigForInitialLoad(globalHudiConfigs,jobControlRec)
                     outputDf_inserted.write.format('org.apache.hudi').options(**hudiConfigs).mode('Append').save(targetPath)
-                    print('{} : Completed bulk insert, outputDf_inserted df to S3 bucket'.format(jobControlRec['table_name']))
+                    print('Table {} : Completed bulk insert, outputDf_inserted df to S3 bucket'.format(jobControlRec['table_name']))
 
                 #Handling updates
                 outputDf = inputDf.filter("Op = 'U'").drop(*dropColumnList)
-                print('{} : Update Partitions count: {}.'.format(jobControlRec['table_name'],outputDf.rdd.getNumPartitions()))
+                print('Table {} : Update Partitions count: {}.'.format(jobControlRec['table_name'],outputDf.rdd.getNumPartitions()))
             else:
                 #No optimization bulk insert optmization needed. Process everything except deletes
-                #print("dont split cdc")
                 outputDf = inputDf.filter("Op != 'D'").drop(*dropColumnList)
-                print('{} : Upsert/Update Partitions count: {}.'.format(jobControlRec['table_name'],outputDf.rdd.getNumPartitions()))
+                print('Table {} : Upsert/Update Partitions count: {}.'.format(jobControlRec['table_name'],outputDf.rdd.getNumPartitions()))
 
             #Process updates/upserts.
             if not outputDf.rdd.isEmpty():  # outputDf.count() > 0:
                 hudiConfigs = getHudiConfigForIncrementalLoad(globalHudiConfigs,jobControlRec)
                 #print("hudiConfigs: getHudiConfigForIncrementalLoad", hudiConfigs)
-                print('{} : Processing upserts/updates.'.format(jobControlRec['table_name']))
+                print('Table {} : Processing upserts/updates.'.format(jobControlRec['table_name']))
                 outputDf.write.format('org.apache.hudi').options(**hudiConfigs).mode('Append').save(targetPath)
-                print('{} : Completed upserts/updates, outputDf_inserted df to S3 bucket'.format(jobControlRec['table_name']))
+                print('Table {} : Completed upserts/updates, outputDf_inserted df to S3 bucket'.format(jobControlRec['table_name']))
 
             #Process deletes
             outputDf_deleted = inputDf.filter("Op = 'D'").drop(*dropColumnList)
             if not outputDf_deleted.rdd.isEmpty():  # outputDf_deleted.count() > 0:
-                print('{} : Processing deletes.'.format(jobControlRec['table_name']))
+                print('Table {} : Processing deletes.'.format(jobControlRec['table_name']))
                 hudiConfigs = getHudiConfigForDeletes(globalHudiConfigs,jobControlRec)
                 outputDf_deleted.write.format('org.apache.hudi').options(**hudiConfigs).mode('Append').save(targetPath)
-                print('{} : Completed deletes, outputDf_deleted df to S3 bucket'.format(jobControlRec['table_name']))
+                print('Table {} : Completed deletes, outputDf_deleted df to S3 bucket'.format(jobControlRec['table_name']))
 
     #end if not inputStgDf.rdd.isEmpty():
     else:
-        print('{} : No records found in Raw bucket to process'.format(jobControlRec['table_name']))
+        print('Table {} : No records found in Raw bucket to process'.format(jobControlRec['table_name']))
 
     inputStgDf.unpersist()  # unpersist dataframe from memory.
-    print('{} : Processing completed.'.format(jobControlRec['table_name']))
+    print('Table {} : Processing completed.'.format(jobControlRec['table_name']))
     #return ('{} : process_raw_data Function executed sucessfully.'.format(jobControlRec['table_name']))
 
 

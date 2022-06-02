@@ -159,7 +159,7 @@ def defineGlobalHudiConfigs(jobControlRec):
         'className': 'org.apache.hudi',
         'hoodie.datasource.hive_sync.use_jdbc': 'false',
         'hoodie.datasource.write.precombine.field': 'measurement_value',#todo,
-        #'hoodie.datasource.write.precombine.field': 'jobControlRec['precombine_field']',
+        'hoodie.datasource.write.precombine.field': jobControlRec['precombine_field'],
         'hoodie.datasource.write.recordkey.field': jobControlRec['primary_key'].replace(';', ','),
         'hoodie.table.name': jobControlRec['table_name'] ,
         'hoodie.consistency.check.enabled': 'true',
@@ -272,8 +272,17 @@ def getHudiConfigForDeletes(globalHudiConfigs,jobControlRec):
 # Process Initial/Full and incremental data from raw bucket to curated bucket
 def process_raw_data(jobControlRec):
 
+
+    #create Glue Database if it does not exist    
+    jobControlRec['glueDbName'] = ('dl_' + jobControlRec['db_name'] + '_' + jobControlRec['schema_name']).lower()
+    if not glueDBExists(jobControlRec['glueDbName']):
+        createGlueDB(jobControlRec['glueDbName'])
+
     #Enrich job control properties
     jobControlRec = enrichJobControlProperties(jobControlRec)
+
+    #get a map of all possible hudi configuration options.
+    globalHudiConfigs = defineGlobalHudiConfigs(jobControlRec)
 
     rawBucketS3PathsList = [
         's3://' + rawS3BucketName + '/' + jobControlRec['db_name'] + '/' + jobControlRec['schema_name'] + '/' + jobControlRec['table_name'] + '/',
@@ -320,8 +329,6 @@ def process_raw_data(jobControlRec):
             inputDf = inputStgNoDupsDf
             #print('{} : inputDf Partitions count:{}, after window query'.format(jobControlRec['table_name'], inputDf.rdd.getNumPartitions()))
 
-        #get a map of all possible hudi configuration options.
-        globalHudiConfigs = defineGlobalHudiConfigs(jobControlRec)
 
         dropColumnList = ['db', 'op', 'schema_name', 'transaction_id', 'seq_by_pk']
         
@@ -389,9 +396,6 @@ def main():
     if jobControlProps is not None and len(jobControlProps) > 0:
         for jobControlRec in jobControlProps:
             print('Processing {} schema in {} table from job control properties'.format(jobControlRec['schema_name'], jobControlRec['table_name']))
-            jobControlRec['glueDbName'] = ('dl_' + jobControlRec['db_name'] + '_' + jobControlRec['schema_name']).lower()
-            if not glueDBExists(jobControlRec['glueDbName']):
-                createGlueDB(jobControlRec['glueDbName'])
             process_raw_data(jobControlRec)
     else:
         print("No job control properties found for {} in {} DynamoDB table. No processing is attempted".format(jobName,controlTableName))

@@ -51,19 +51,6 @@ export class PreReqStack extends Stack {
     });
     this.libraryBucket = libraryBucket;
 
-    //populate library S3 bucket with jars,.
-    //https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_s3_deployment-readme.html
-    //Not deploying jar files as there are too many files, and the CDK lambda function that uploads these files will timeout. https://github.com/aws/aws-cdk/issues/4058
-    // new BucketDeployment(this, 'deployJars',{
-    //   sources: [
-    //     // Source.asset("lib/assets/jars/hudi-spark-bundle_2.11-0.10.1.jar"), 
-    //     // Source.asset("lib/assets/jars/spark-avro_2.11-2.4.4.jar"), 
-    //     // Source.asset("lib/assets/jars/log4j-web-2.16.0.jar")
-    //     ],
-    //   destinationBucket: libraryBucket,
-    //   destinationKeyPrefix: 'jars'
-    // })
-    
     //populate library S3 bucket with glue job script,.
     new BucketDeployment(this, 'script',{
       sources: [
@@ -72,14 +59,7 @@ export class PreReqStack extends Stack {
       destinationKeyPrefix: 'scripts'
     })
     
-    // //create directory for Athena query results. We use Athena to query processed data.
-    // //https://docs.aws.amazon.com/athena/latest/ug/querying.html#:~:text=runs%20the%20query.-,Specifying%20a%20query%20result%20location%20using%20the%20Athena%20console,-Before%20you%20can
-    // new BucketDeployment(this, 'athena_query_output',{
-    //   sources: [],
-    //   destinationBucket: libraryBucket,
-    //   destinationKeyPrefix: 'athena_query_output/results'
-    // })
- 
+
   //stage raw data for initial load
     new BucketDeployment(this, 'staging_data',{
       sources: [
@@ -107,5 +87,3 @@ export interface PreReqStackProps extends StackProps {
   libraryBucket: Bucket;
   controlTable: Table;
 }
-
-

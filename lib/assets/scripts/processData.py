@@ -158,7 +158,6 @@ def defineGlobalHudiConfigs(jobControlRec):
     commonConfig = {
         'className': 'org.apache.hudi',
         'hoodie.datasource.hive_sync.use_jdbc': 'false',
-        'hoodie.datasource.write.precombine.field': 'measurement_value',#todo,
         'hoodie.datasource.write.precombine.field': jobControlRec['precombine_field'],
         'hoodie.datasource.write.recordkey.field': jobControlRec['primary_key'].replace(';', ','),
         'hoodie.table.name': jobControlRec['table_name'] ,
@@ -300,6 +299,8 @@ def process_raw_data(jobControlRec):
     inputStgDf = inputDyf.toDF()
     inputStgDf.printSchema()
     inputStgDf.persist()  # persist this dataframe to avoid reading from raw S3 multiple times.
+
+    print("Count of records being read", inputStgDf.count())
 
     if not inputStgDf.rdd.isEmpty():
         print('Records found in Raw bucket to load into Curated Bucket. Continue processing')

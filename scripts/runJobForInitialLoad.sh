@@ -1,12 +1,12 @@
 #!/bin/bash
-echo "Run MeterMeasurementsHudiCompactionJob Glue Job"
-aws glue start-job-run --job-name MeterMeasurementsHudiCompactionJob
+echo "Run MeterMeasurementsHudiProcessingJob Glue Job"
+aws glue start-job-run --job-name MeterMeasurementsHudiProcessingJob
 jobRunStatus=$?
 
 if [ $jobRunStatus -eq 0 ]
 then
-    echo "MeterMeasurementsHudiCompactionJob Glue Job invoked successfully"
+    echo "MeterMeasurementsHudiProcessingJob Glue Job invoked successfully"
 
 else
-    echo "MeterMeasurementsHudiCompactionJob Glue Job invoke failed"
+    echo "MeterMeasurementsHudiProcessingJob Glue Job invoke failed"
 fi

@@ -6,7 +6,7 @@
        "primary_key":"measurement_id;measurement_date_time",
        "partition_key":"measurement_date",
        "hudi_storage_type":"cow",
-       "glue_job_name":"MeterMeasurementsHudiCompactionJob",
+       "glue_job_name":"MeterMeasurementsHudiProcessingJob",
        "precombine_field": "measurement_value",
        "dms_full_load_partitioned":"no",
        "hudi_bulkinsert_shuffle_parallelism":"3",

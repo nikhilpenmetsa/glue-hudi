@@ -2,7 +2,7 @@
 cd ~/environment/glue-hudi
 
 echo "Deploying Glue job stack..."
-cdk deploy CdkGlueTestStack
+cdk deploy GlueStack
 cdkDeployStatus=$?
 
 if [ $cdkDeployStatus -eq 0 ]

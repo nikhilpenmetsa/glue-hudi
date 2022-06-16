@@ -44,11 +44,9 @@ then
     rm spark-avro_2.11-2.4.4.jar
     rm hudi-spark-bundle_2.11-0.10.1.jar
     
-    echo "Creating DynamoDB table to hold job control configurations"
-    glueControlTable=`aws cloudformation describe-stacks --stack-name prereqStack --query "Stacks[0].Outputs" --output json | jq -rc '.[] | select(.OutputKey | startswith("ExportsOutputRefjobControlTable")) | .OutputValue '`
-    echo "Created DynamoDB table to hold job control configurations"
-    
     echo "Populating job control Configs into DynamoDB table "
+    glueControlTable=`aws cloudformation describe-stacks --stack-name prereqStack --query "Stacks[0].Outputs" --output json | jq -rc '.[] | select(.OutputKey | startswith("ExportsOutputRefjobControlTable")) | .OutputValue '`
+
     pip3 install -r requirements.txt
     python3 scripts/loadControlData.py $glueControlTable
     echo "Populated job control Configs into DynamoDB table "
